@@ -6,7 +6,10 @@ namespace Discoscope.Desktop.Services;
 
 public static class UserTempCleanup
 {
-    public sealed record Candidate(string Path, long Bytes, DateTime ModifiedUtc);
+    public sealed record Candidate(string Path, long Bytes, DateTime ModifiedUtc)
+    {
+        internal CleanupFileGuard.FileIdentity? Identity { get; init; }
+    }
     public sealed record Result(int Recycled, int Skipped, long LogicalBytes);
     public sealed record RecycleProgress(int Processed, int Total, int Recycled, int Skipped, long LogicalBytes);
     public sealed record RecycleReport(Result Result, bool Cancelled, IReadOnlyList<string> Errors)
@@ -64,7 +67,10 @@ public static class UserTempCleanup
                 for (int i = 0; i < count; i++)
                 {
                     token.ThrowIfCancellationRequested();
-                    items[i] = new Candidate(reader.ReadString(), reader.ReadInt64(), DateTime.FromBinary(reader.ReadInt64()));
+                    items[i] = new Candidate(reader.ReadString(), reader.ReadInt64(), DateTime.FromBinary(reader.ReadInt64()))
+                    {
+                        Identity = new CleanupFileGuard.FileIdentity(reader.ReadUInt64(), reader.ReadUInt64(), reader.ReadUInt64())
+                    };
                 }
                 return items;
             }
@@ -112,6 +118,10 @@ public static class UserTempCleanup
                 writer.Write(item.Path);
                 writer.Write(item.Bytes);
                 writer.Write(item.ModifiedUtc.ToBinary());
+                var identity = item.Identity!.Value;
+                writer.Write(identity.Volume);
+                writer.Write(identity.Low);
+                writer.Write(identity.High);
                 count++;
             }, path);
             if (!summary.Accessible) throw new IOException("L’emplacement temporaire est absent ou inaccessible.");
@@ -162,11 +172,13 @@ public static class UserTempCleanup
                 {
                     if ((entry.Attributes & System.IO.FileAttributes.Directory) != 0)
                         remaining.Push(entry.Path);
-                    else if (entry.ModifiedUtc <= cutoff)
+                    else if (entry.ModifiedUtc <= cutoff &&
+                        CleanupFileGuard.TryReadCandidate(entry.Path, out var candidate) &&
+                        candidate.ModifiedUtc <= cutoff)
                     {
-                        collect?.Invoke(new Candidate(entry.Path, entry.Bytes, entry.ModifiedUtc));
+                        collect?.Invoke(candidate);
                         eligible++;
-                        bytes = AddBytes(bytes, entry.Bytes);
+                        bytes = AddBytes(bytes, candidate.Bytes);
                     }
                 }
                 if (visited % 2048 == 0) progress?.Report(new Progress(visited, eligible, bytes));
@@ -178,7 +190,7 @@ public static class UserTempCleanup
         return result;
     }
 
-    private readonly record struct Entry(string Path, System.IO.FileAttributes Attributes, long Bytes, DateTime ModifiedUtc);
+    private readonly record struct Entry(string Path, System.IO.FileAttributes Attributes, DateTime ModifiedUtc);
 
     private static IEnumerator<Entry>? OpenDirectory(string directory, EnumerationOptions options)
     {
@@ -188,7 +200,7 @@ public static class UserTempCleanup
             for (string? part = directory; part is not null; part = Path.GetDirectoryName(part))
                 if ((File.GetAttributes(part) & System.IO.FileAttributes.ReparsePoint) != 0) return null;
             return new FileSystemEnumerable<Entry>(directory, (ref FileSystemEntry entry) =>
-                new Entry(entry.ToFullPath(), entry.Attributes, entry.Length, entry.LastWriteTimeUtc.UtcDateTime), options).GetEnumerator();
+                new Entry(entry.ToFullPath(), entry.Attributes, entry.LastWriteTimeUtc.UtcDateTime), options).GetEnumerator();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
@@ -243,10 +255,13 @@ public static class UserTempCleanup
                     try
                     {
                         using var file = CleanupFileGuard.Open(root, candidate.Path);
+                        if (file.Identity != candidate.Identity)
+                            throw new IOException("Le fichier indexé a été remplacé ou son identifiant est indisponible.");
                         if (file.Length != candidate.Bytes || file.ModifiedUtc != candidate.ModifiedUtc ||
                             file.ModifiedUtc > DateTime.UtcNow.AddDays(-7))
                             throw new IOException("Fichier modifié ou devenu non éligible.");
                         token.ThrowIfCancellationRequested();
+                        file.VerifyPathStillMatches(candidate.Path);
                         recycle(candidate.Path);
                         recycled++;
                         bytes = AddBytes(bytes, candidate.Bytes);

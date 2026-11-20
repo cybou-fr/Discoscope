@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
@@ -11,10 +12,15 @@ internal sealed class CleanupFileGuard : IDisposable
     private const uint GenericRead = 0x80000000;
     private const uint BackupSemantics = 0x02000000;
     private const uint OpenReparsePoint = 0x00200000;
+    private const int FileIdInfo = 18;
     private readonly List<SafeFileHandle> _handles = [];
 
     public long Length { get; private set; }
     public DateTime ModifiedUtc { get; private set; }
+    public FileIdentity Identity { get; private set; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal readonly record struct FileIdentity(ulong Volume, ulong Low, ulong High);
 
     private CleanupFileGuard() { }
 
@@ -50,8 +56,7 @@ internal sealed class CleanupFileGuard : IDisposable
                     throw new IOException("Lien, point de réanalyse ou type de chemin non autorisé.");
                 if (!directory)
                 {
-                    guard.Length = RandomAccess.GetLength(handle);
-                    guard.ModifiedUtc = File.GetLastWriteTimeUtc(handle);
+                    (guard.Length, guard.ModifiedUtc, guard.Identity) = ReadSnapshot(handle);
                 }
             }
             return guard;
@@ -61,6 +66,41 @@ internal sealed class CleanupFileGuard : IDisposable
             guard.Dispose();
             throw;
         }
+    }
+
+    internal static bool TryReadCandidate(string path, [NotNullWhen(true)] out UserTempCleanup.Candidate? candidate)
+    {
+        candidate = null;
+        try
+        {
+            using var handle = OpenHandle(path, directory: false);
+            var (bytes, modified, identity) = ReadSnapshot(handle);
+            candidate = new UserTempCleanup.Candidate(path, bytes, modified) { Identity = identity };
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    public void VerifyPathStillMatches(string path)
+    {
+        using var handle = OpenHandle(path, directory: false);
+        var (length, modified, identity) = ReadSnapshot(handle);
+        if (identity != Identity || length != Length || modified != ModifiedUtc)
+            throw new IOException("Le chemin ne désigne plus le fichier vérifié.");
+    }
+
+    private static (long Length, DateTime Modified, FileIdentity Identity) ReadSnapshot(SafeFileHandle handle)
+    {
+        if ((File.GetAttributes(handle) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
+            throw new IOException("Lien, point de réanalyse ou type de chemin non autorisé.");
+        if (!GetFileInformationByHandleEx(handle, FileIdInfo, out var identity, Marshal.SizeOf<FileIdentity>()))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (identity.Low == 0 && identity.High == 0)
+            throw new IOException("Identifiant du fichier indisponible.");
+        return (RandomAccess.GetLength(handle), File.GetLastWriteTimeUtc(handle), identity);
     }
 
     private static SafeFileHandle OpenHandle(string path, bool directory)
@@ -87,4 +127,9 @@ internal sealed class CleanupFileGuard : IDisposable
     [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeFileHandle CreateFile(string fileName, uint desiredAccess, FileShare shareMode,
         IntPtr securityAttributes, uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int informationClass,
+        out FileIdentity information, int size);
 }

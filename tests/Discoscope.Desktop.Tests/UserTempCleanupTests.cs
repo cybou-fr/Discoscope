@@ -88,6 +88,39 @@ public sealed class UserTempCleanupTests : IDisposable
     }
 
     [Fact]
+    public void CleanupSkipsAReplacementWithTheSameSizeAndTimestamp()
+    {
+        var original = WriteOld("target.bin", 3);
+        var replacement = WriteOld("replacement.bin", 3);
+        File.WriteAllBytes(replacement, [1, 2, 3]);
+        File.SetLastWriteTimeUtc(replacement, File.GetLastWriteTimeUtc(original));
+        using var inventory = Index();
+        File.Move(original, Path.Join(_fixture.FullName, "original.bin"));
+        File.Move(replacement, original);
+
+        var report = Recycle(inventory);
+
+        Assert.Equal(new UserTempCleanup.Result(0, 2, 0), report.Result);
+        Assert.Contains(report.Errors, message => message.Contains("a été remplacé", StringComparison.Ordinal));
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(original));
+        Assert.Empty(_recycled.EnumerateFiles());
+    }
+
+    [Fact]
+    public void LastPathCheckDetectsReplacementAfterOpeningTheValidatedHandle()
+    {
+        var original = WriteOld("target.bin", 3);
+        var replacement = WriteOld("replacement.bin", 3);
+        File.SetLastWriteTimeUtc(replacement, File.GetLastWriteTimeUtc(original));
+        using var guard = CleanupFileGuard.Open(_root.FullName, original);
+        File.Move(original, Path.Join(_root.FullName, "original.bin"));
+        File.Move(replacement, original);
+
+        Assert.Throws<IOException>(() => guard.VerifyPathStillMatches(original));
+        Assert.True(File.Exists(original));
+    }
+
+    [Fact]
     public void MissingRootDoesNotLeaveAnInventory()
     {
         Assert.Throws<IOException>(() => UserTempCleanup.CreateInventory(
