@@ -42,7 +42,10 @@
                         Margin="10,18,0,0" Background="#34465A" Foreground="White"/>
             </Grid>
         </Border>
-        <Grid Grid.Row="4">
+        <StackPanel Grid.Row="4">
+            <TextBlock Text="{Binding VolumeLabel, StringFormat=Volume occupé : {0}}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,5"/>
+            <TextBlock Text="{Binding FreeLabel, StringFormat=Espace libre : {0}}" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,10"/>
+            <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="12"/>
@@ -69,6 +72,8 @@
                 </StackPanel>
             </Border>
         </Grid>
+            </Grid>
+        </StackPanel>
         <Border Grid.Row="6" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
             <Grid>
                 <Grid.RowDefinitions>

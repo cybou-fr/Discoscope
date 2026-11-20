@@ -38,6 +38,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _filesLabel = "—";
     private string _sizeLabel = "—";
     private string _issuesLabel = "—";
+    private string _volumeLabel = "—";
+    private string _freeLabel = "—";
 
     public ObservableCollection<string> Drives { get; } = new(
         DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.RootDirectory.FullName));
@@ -47,6 +49,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string Status { get => _status; private set { _status = value; Changed(); } }
     public string FilesLabel { get => _filesLabel; private set { _filesLabel = value; Changed(); } }
     public string SizeLabel { get => _sizeLabel; private set { _sizeLabel = value; Changed(); } }
+    public string VolumeLabel { get => _volumeLabel; private set { _volumeLabel = value; Changed(); } }
+    public string FreeLabel { get => _freeLabel; private set { _freeLabel = value; Changed(); } }
     public string IssuesLabel { get => _issuesLabel; private set { _issuesLabel = value; Changed(); } }
 
     public RelayCommand ScanCommand { get; }
@@ -68,6 +72,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CancelCommand.RaiseCanExecuteChanged();
         _scanCancellation = new CancellationTokenSource();
         Entries.Clear();
+        try
+        {
+            var volume = new VolumeInspector().Inspect(SelectedDrive);
+            VolumeLabel = SizeFormatter.Format(volume.UsedBytes);
+            FreeLabel = SizeFormatter.Format(volume.FreeBytes);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            VolumeLabel = FreeLabel = "Indisponible";
+        }
         FilesLabel = SizeLabel = IssuesLabel = "…";
         Status = "Analyse en cours…";
         var progress = new Progress<ScanProgress>(p =>
