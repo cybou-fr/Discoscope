@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Discoscope.Core/Discoscope.Core.csproj" />
+  <Project Path="src/Discoscope.Desktop/Discoscope.Desktop.csproj" />
+  <Project Path="tests/Discoscope.Core.Tests/Discoscope.Core.Tests.csproj" />
+</Solution>

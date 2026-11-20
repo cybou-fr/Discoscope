@@ -1,0 +1,103 @@
+<Window x:Class="Discoscope.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Discoscope — Analyse de l'espace disque" Width="1200" Height="790"
+        MinWidth="900" MinHeight="620" Background="{StaticResource CanvasBrush}"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="28"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="22"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="22"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <DockPanel Grid.Row="0">
+            <StackPanel DockPanel.Dock="Left">
+                <TextBlock Text="DISCOSCOPE" FontWeight="Bold" FontSize="27" Foreground="{StaticResource AccentBrush}"/>
+                <TextBlock Text="Comprenez ce qui occupe votre disque." Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
+            </StackPanel>
+            <TextBlock Text="ANALYSE LOCALE · LECTURE SEULE" HorizontalAlignment="Right"
+                       Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+        </DockPanel>
+        <Border Grid.Row="2" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Lecteur ou dossier à analyser" FontWeight="SemiBold" Margin="0,0,0,9"/>
+                    <ComboBox ItemsSource="{Binding Drives}" SelectedItem="{Binding SelectedDrive}" 
+                              MinHeight="36" MaxWidth="450" HorizontalAlignment="Stretch"
+                              Background="#273448" Foreground="#10151F"/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="Analyser" Command="{Binding ScanCommand}"
+                        Margin="18,18,0,0" MinWidth="118"/>
+                <Button Grid.Column="2" Content="Annuler" Command="{Binding CancelCommand}"
+                        Margin="10,18,0,0" Background="#34465A" Foreground="White"/>
+            </Grid>
+        </Border>
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="Fichiers analysés" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock Text="{Binding FilesLabel}" FontSize="26" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="Taille logique analysée" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock Text="{Binding SizeLabel}" FontSize="26" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="4" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="Accès / avertissements" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock Text="{Binding IssuesLabel}" FontSize="26" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        <Border Grid.Row="6" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="12"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <DockPanel>
+                    <TextBlock Text="Dossiers les plus volumineux" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock Text="Classement par taille logique" HorizontalAlignment="Right"
+                               Foreground="{StaticResource MutedBrush}"/>
+                </DockPanel>
+                <DataGrid Grid.Row="2" ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
+                          IsReadOnly="True" HeadersVisibility="Column" Background="#1A2230"
+                          Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
+                          BorderThickness="0" GridLinesVisibility="None" RowHeight="32"
+                          CanUserAddRows="False" EnableRowVirtualization="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Dossier" Binding="{Binding Path}" Width="*"/>
+                        <DataGridTextColumn Header="Taille" Binding="{Binding SizeLabel}" Width="125"/>
+                        <DataGridTextColumn Header="Fichiers" Binding="{Binding FileCount}" Width="110"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+        <StackPanel Grid.Row="7" Margin="0,17,0,0">
+            <TextBlock Text="{Binding Status}" Foreground="{StaticResource AccentBrush}" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="Les fichiers système protégés, les liens NTFS et les clichés VSS nécessitent une analyse distincte. Aucune suppression n'est effectuée."
+                       Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,7,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+    </Grid>
+</Window>
