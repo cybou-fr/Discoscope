@@ -7,6 +7,7 @@ public static class UserTempCleanup
     public sealed record Result(int Recycled, int Skipped, long LogicalBytes);
     public sealed record Progress(long Visited, int Eligible, long LogicalBytes);
     public enum Location { User, Windows }
+    public const int PreviewLimit = 1000;
     public static string GetRoot(Location location) =>
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(location == Location.User
             ? Path.GetTempPath()
@@ -28,7 +29,7 @@ public static class UserTempCleanup
     public static IReadOnlyList<Candidate> Preview(Location location = Location.User, CancellationToken token = default, IProgress<Progress>? progress = null)
     {
         var found = new List<Candidate>();
-        Scan(location, token, progress, found.Add);
+        Scan(location, token, progress, item => { if (found.Count < PreviewLimit) found.Add(item); });
         return found;
     }
 

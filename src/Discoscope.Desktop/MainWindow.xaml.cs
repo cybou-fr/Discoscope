@@ -135,7 +135,7 @@ public partial class MainWindow : Window
             long total = 0;
             foreach (var candidate in candidates)
                 total = total > long.MaxValue - candidate.Bytes ? long.MaxValue : total + candidate.Bytes;
-            CleanupStatus.Text = $"{candidates.Count:N0} fichiers · {FormatCleanupBytes(total)} (taille logique).";
+            CleanupStatus.Text = $"{candidates.Count:N0} fichiers affichés · {FormatCleanupBytes(total)} logiques. Aperçu limité à {Discoscope.Desktop.Services.UserTempCleanup.PreviewLimit:N0} fichiers ; l’évaluation complète est disponible ci-dessous.";
         }
         catch (OperationCanceledException)
         {
