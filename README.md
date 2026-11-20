@@ -32,6 +32,12 @@ Les tailles affichées sont les **tailles logiques des fichiers accessibles**, e
 
 Les versions suivantes ajouteront des sources spécifiques Windows (VSS, DISM, réserves système, Windows Update) et un moteur d'actions de nettoyage avec prévisualisation, confirmation explicite et exécution via les API Windows adaptées. **Aucun fichier système n'est supprimé directement.**
 
+## Développement
+
+Modifications exclusivement sur `main`. Pas de CI/CD ni de GitHub Actions. Compilation et tests locaux sur Windows.
+
+Le diagnostic des dossiers temporaires utilisateur et Windows est en lecture seule. La taille détectée ne correspond pas à une quantité supprimable garantie.
+
 ## Architecture
 
 - `Discoscope.Core` : modèles et scanner de dossiers, indépendants de WPF.

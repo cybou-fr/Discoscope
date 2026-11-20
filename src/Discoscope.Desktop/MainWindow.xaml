@@ -80,6 +80,8 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="12"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="115"/>
                 </Grid.RowDefinitions>
                 <DockPanel>
                     <TextBlock Text="Dossiers les plus volumineux" FontSize="18" FontWeight="SemiBold"/>
@@ -95,6 +97,16 @@
                         <DataGridTextColumn Header="Dossier" Binding="{Binding Path}" Width="*"/>
                         <DataGridTextColumn Header="Taille" Binding="{Binding SizeLabel}" Width="125"/>
                         <DataGridTextColumn Header="Fichiers" Binding="{Binding FileCount}" Width="110"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Grid.Row="3" Text="Fichiers temporaires — diagnostic uniquement" FontWeight="SemiBold" Margin="0,10,0,8"/>
+                <DataGrid Grid.Row="4" ItemsSource="{Binding TemporaryEntries}" AutoGenerateColumns="False" IsReadOnly="True" Background="#1A2230" Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Emplacement" Binding="{Binding Name}" Width="190"/>
+                        <DataGridTextColumn Header="Chemin" Binding="{Binding Path}" Width="*"/>
+                        <DataGridTextColumn Header="Taille logique" Binding="{Binding Size}" Width="120"/>
+                        <DataGridTextColumn Header="Fichiers" Binding="{Binding Files}" Width="85"/>
+                        <DataGridTextColumn Header="Ignorés" Binding="{Binding Skipped}" Width="85"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>

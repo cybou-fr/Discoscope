@@ -7,6 +7,8 @@ using Discoscope.Core.Services;
 
 namespace Discoscope.Desktop.ViewModels;
 
+public sealed record TemporaryRow(string Name, string Path, string Size, long Files, long Skipped);
+
 public sealed record DirectoryRow(string Path, long Bytes, long FileCount)
 {
     public string SizeLabel => SizeFormatter.Format(Bytes);
@@ -45,6 +47,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.RootDirectory.FullName));
 
     public ObservableCollection<DirectoryRow> Entries { get; } = [];
+    public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
     public string? SelectedDrive { get => _selectedDrive; set { _selectedDrive = value; Changed(); ScanCommand.RaiseCanExecuteChanged(); } }
     public string Status { get => _status; private set { _status = value; Changed(); } }
     public string FilesLabel { get => _filesLabel; private set { _filesLabel = value; Changed(); } }
@@ -72,6 +75,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CancelCommand.RaiseCanExecuteChanged();
         _scanCancellation = new CancellationTokenSource();
         Entries.Clear();
+        TemporaryEntries.Clear();
         try
         {
             var volume = new VolumeInspector().Inspect(SelectedDrive);
@@ -97,6 +101,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
             IssuesLabel = result.Issues.Count.ToString("N0");
+            foreach (var temp in await new TemporaryFilesInspector().InspectAsync(_scanCancellation.Token))
+                TemporaryEntries.Add(new TemporaryRow(temp.Name, temp.Path, SizeFormatter.Format(temp.LogicalBytes), temp.FileCount, temp.SkippedCount));
             foreach (var entry in result.Entries.Take(300))
                 Entries.Add(new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount));
             Status = $"Analyse terminée à {result.CompletedAt:HH:mm} · {result.DirectoryCount:N0} dossiers · {result.Issues.Count:N0} avertissements.";
