@@ -43,8 +43,9 @@
             </Grid>
         </Border>
         <StackPanel Grid.Row="4">
-            <TextBlock Text="{Binding VolumeLabel, StringFormat=Volume occupé : {0}}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,5"/>
-            <TextBlock Text="{Binding FreeLabel, StringFormat=Espace libre : {0}}" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,10"/>
+            <TextBlock Text="Espace occupé et libre du volume (mesures Windows)" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+            <TextBlock Text="{Binding VolumeLabel}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,5"/>
+            <TextBlock Text="{Binding FreeLabel}" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,10"/>
             <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -71,7 +72,6 @@
                     <TextBlock Text="{Binding IssuesLabel}" FontSize="26" FontWeight="SemiBold" Margin="0,10,0,0"/>
                 </StackPanel>
             </Border>
-        </Grid>
             </Grid>
         </StackPanel>
         <Border Grid.Row="6" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">

@@ -75,8 +75,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             var volume = new VolumeInspector().Inspect(SelectedDrive);
-            VolumeLabel = SizeFormatter.Format(volume.UsedBytes);
-            FreeLabel = SizeFormatter.Format(volume.FreeBytes);
+            VolumeLabel = "Occupé : " + SizeFormatter.Format(volume.UsedBytes);
+            FreeLabel = "Libre : " + SizeFormatter.Format(volume.FreeBytes);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
