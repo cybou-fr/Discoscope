@@ -13,6 +13,44 @@ namespace Discoscope.Desktop;
 
 public partial class MainWindow : Window
 {
+    private async void PreviewUserTempCleanup(object sender, RoutedEventArgs e)
+    {
+        CleanupStatus.Text = "Recherche en cours…";
+        try
+        {
+            var candidates = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview());
+            CleanupFiles.ItemsSource = candidates;
+            CleanupStatus.Text = $"{candidates.Count:N0} fichiers trouvés (maximum 500).";
+        }
+        catch (Exception ex)
+        {
+            CleanupStatus.Text = "Recherche impossible.";
+            MessageBox.Show(this, ex.Message, "Discoscope");
+        }
+    }
+
+    private async void RecycleUserTempCleanup(object sender, RoutedEventArgs e)
+    {
+        var selected = CleanupFiles.SelectedItems.Cast<Discoscope.Desktop.Services.UserTempCleanup.Candidate>().ToArray();
+        if (selected.Length == 0) return;
+        var total = selected.Sum(file => file.Bytes);
+        if (MessageBox.Show(this,
+            $"Déplacer {selected.Length:N0} fichiers ({total:N0} octets logiques) vers la Corbeille ?",
+            "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        CleanupStatus.Text = "Déplacement vers la Corbeille…";
+        try
+        {
+            var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected));
+            CleanupFiles.ItemsSource = null;
+            CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés · {result.Skipped:N0} ignorés. Relancez l’analyse.";
+        }
+        catch (Exception ex)
+        {
+            CleanupStatus.Text = "Nettoyage interrompu.";
+            MessageBox.Show(this, ex.Message, "Discoscope");
+        }
+    }
+
     private MainViewModel Model => (MainViewModel)DataContext;
 
     public MainWindow()

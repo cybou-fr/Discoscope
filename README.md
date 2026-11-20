@@ -83,3 +83,7 @@ Apache License 2.0. Voir [LICENSE](LICENSE).
 ### Espace Windows (inventaire ciblé)
 
 L'onglet **Espace Windows** classe des emplacements connus (temporaires utilisateur et Windows, téléchargements, Windows Update, cache de distribution, corbeille) à partir de l'arborescence déjà analysée, sans nouveau parcours disque. Les catégories absentes ou inaccessibles ne sont pas inventées. Les tailles sont logiques et ne constituent pas une estimation de l'espace libérable. Aucune suppression n'est effectuée.
+
+### Nettoyage des temporaires utilisateur
+
+L'onglet **Nettoyage** permet de prévisualiser au maximum 500 fichiers du dossier temporaire utilisateur non modifiés depuis sept jours. La sélection et une confirmation explicite sont requises avant leur déplacement vers la Corbeille. Les fichiers modifiés depuis l'aperçu et les points de réanalyse sont ignorés. Les dossiers ne sont pas supprimés. Les tailles sont logiques et ne représentent pas un gain physique garanti. Relancer l'analyse après nettoyage.
