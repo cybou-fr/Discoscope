@@ -231,12 +231,12 @@
                         <TextBlock Grid.Row="1" Margin="0,8,0,12" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
                                    Text="Fichiers du dossier temporaire utilisateur non modifiés depuis 7 jours. Aperçu limité à 500 fichiers. Déplacement vers la Corbeille uniquement après confirmation."/>
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
-                            <Button Content="Rechercher" Click="PreviewUserTempCleanup" Padding="12,6"/>
-                            <Button Content="Déplacer la sélection vers la Corbeille" Click="RecycleUserTempCleanup" Padding="12,6" Margin="10,0,0,0"/>
+                            <Button x:Name="CleanupPreviewButton" Content="Rechercher" Click="PreviewUserTempCleanup" Padding="12,6"/>
+                            <Button x:Name="CleanupRecycleButton" Content="Déplacer la sélection vers la Corbeille" Click="RecycleUserTempCleanup" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <TextBlock x:Name="CleanupStatus" Text="Aucun aperçu" Margin="14,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                         <DataGrid x:Name="CleanupFiles" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True"
-                                  SelectionMode="Extended" CanUserAddRows="False" EnableRowVirtualization="True"
+                                  SelectionMode="Extended" SelectionChanged="CleanupSelectionChanged" CanUserAddRows="False" EnableRowVirtualization="True"
                                   Background="#1A2230" Foreground="White" RowBackground="#1A2230"
                                   AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
                             <DataGrid.Columns>

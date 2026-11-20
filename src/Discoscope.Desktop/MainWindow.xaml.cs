@@ -14,10 +14,30 @@ namespace Discoscope.Desktop;
 public partial class MainWindow : Window
 {
     private bool _cleanupBusy;
+
+    private void CleanupSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateCleanupSelection();
+
+    private void UpdateCleanupSelection()
+    {
+        CleanupPreviewButton.IsEnabled = !_cleanupBusy;
+        CleanupRecycleButton.IsEnabled = !_cleanupBusy && CleanupFiles.SelectedItems.Count > 0;
+        if (_cleanupBusy) return;
+        var count = CleanupFiles.SelectedItems.Count;
+        if (count > 0)
+        {
+            long bytes = 0;
+            foreach (var item in CleanupFiles.SelectedItems)
+                if (item is Discoscope.Desktop.Services.UserTempCleanup.Candidate candidate)
+                    bytes = bytes > long.MaxValue - candidate.Bytes ? long.MaxValue : bytes + candidate.Bytes;
+            CleanupStatus.Text = $"{count:N0} sélectionnés · {bytes:N0} octets logiques.";
+        }
+    }
+
     private async void PreviewUserTempCleanup(object sender, RoutedEventArgs e)
     {
         if (_cleanupBusy) return;
         _cleanupBusy = true;
+        UpdateCleanupSelection();
         CleanupFiles.ItemsSource = null;
         CleanupStatus.Text = "Recherche en cours…";
         try
@@ -31,7 +51,7 @@ public partial class MainWindow : Window
             CleanupStatus.Text = "Recherche impossible.";
             MessageBox.Show(this, ex.Message, "Discoscope");
         }
-        finally { _cleanupBusy = false; }
+        finally { _cleanupBusy = false; UpdateCleanupSelection(); }
     }
 
     private async void RecycleUserTempCleanup(object sender, RoutedEventArgs e)
@@ -44,6 +64,7 @@ public partial class MainWindow : Window
             $"Déplacer {selected.Length:N0} fichiers ({total:N0} octets logiques) vers la Corbeille ?",
             "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         _cleanupBusy = true;
+        UpdateCleanupSelection();
         CleanupStatus.Text = "Déplacement vers la Corbeille…";
         try
         {
