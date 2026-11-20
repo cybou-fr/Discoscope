@@ -200,6 +200,30 @@
                         </Grid>
                     </Grid>
                 </TabItem>
+                <TabItem Header="Espace Windows">
+                    <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Où se trouve votre espace ?" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="1" Text="Inventaire réel issu de l’analyse du disque. Tailles logiques, pas des gains récupérables garantis. Aucune suppression automatique."
+                                   TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,12"/>
+                        <DataGrid Grid.Row="2" ItemsSource="{Binding StorageInsights}" AutoGenerateColumns="False"
+                                  IsReadOnly="True" CanUserAddRows="False" EnableRowVirtualization="True"
+                                  Background="#1A2230" Foreground="White" RowBackground="#1A2230"
+                                  AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Catégorie" Binding="{Binding Category}" Width="180"/>
+                                <DataGridTextColumn Header="Taille logique" Binding="{Binding Size}" Width="110"/>
+                                <DataGridTextColumn Header="Précaution" Binding="{Binding Risk}" Width="95"/>
+                                <DataGridTextColumn Header="Chemin" Binding="{Binding Path}" Width="1.1*"/>
+                                <DataGridTextColumn Header="Conseil" Binding="{Binding Guidance}" Width="1.5*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
                 <TabItem Header="Fichiers volumineux">
                     <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>

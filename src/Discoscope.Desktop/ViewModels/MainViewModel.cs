@@ -16,6 +16,8 @@ public sealed record LargeFileRow(string Path, long Bytes)
     public string Extension => System.IO.Path.GetExtension(Path).ToLowerInvariant();
 }
 
+public sealed record StorageInsightRow(string Category, string Path, string Size, string Risk, string Guidance);
+
 public sealed record ScanIssueRow(string Path, string Message);
 
 public sealed record TemporaryRow(string Name, string Path, string Size, long Files, long Skipped);
@@ -75,6 +77,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
     public ObservableCollection<LargeFileRow> LargestFiles { get; } = [];
     public ObservableCollection<ScanIssueRow> ScanIssues { get; } = [];
+    public ObservableCollection<StorageInsightRow> StorageInsights { get; } = [];
     public IReadOnlyList<TreemapItem> MapEntries { get; private set; } = [];
     public ScanDirectory? CurrentDirectory => _currentDirectory;
     public IReadOnlyList<ExplorerNode> ExplorerRoots { get; private set; } = [];
@@ -317,6 +320,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         TemporaryEntries.Clear();
         LargestFiles.Clear();
         ScanIssues.Clear();
+        StorageInsights.Clear();
         _navigationCancellation?.Cancel();
         MapPath = "Analyse en cours…";
         SetDirectory(null);
@@ -363,6 +367,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
             IssuesLabel = result.Issues.Count.ToString("N0");
+            foreach (var insight in WindowsStorageInsights.Analyze(directory, activeScan.Token))
+                StorageInsights.Add(new StorageInsightRow(insight.Category, insight.Path,
+                    SizeFormatter.Format(insight.LogicalBytes), insight.Risk, insight.Guidance));
             foreach (var issue in result.Issues.Take(2000))
                 ScanIssues.Add(new ScanIssueRow(issue.Path, issue.Message));
             foreach (var file in result.LargestFiles)
