@@ -8,6 +8,7 @@
     <ApplicationIcon>Assets\appicon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Discoscope.Desktop.Tests" />
     <Resource Include="Assets/appicon.ico" />
     <Resource Include="Assets/appicon-128.png" />
     <ProjectReference Include="../Discoscope.Core/Discoscope.Core.csproj" />
