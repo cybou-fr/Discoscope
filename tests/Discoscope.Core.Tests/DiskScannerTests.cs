@@ -22,6 +22,10 @@ public sealed class DiskScannerTests
             var result = await new DiskScanner().ScanAsync(root, progress, CancellationToken.None);
 
             Assert.Equal(192, result.TotalBytes);
+            Assert.Equal(0, result.RootDirectBytes);
+            Assert.Equal(0, result.RootDirectFileCount);
+            Assert.Contains(result.Entries, e => e.Path == Path.Combine(root, "one") && e.DirectBytes == 128 && e.DirectFileCount == 1);
+            Assert.Contains(result.Entries, e => e.Path == Path.Combine(root, "one", "two") && e.DirectBytes == 64 && e.DirectFileCount == 1);
             Assert.Equal(2, result.FileCount);
             Assert.Equal(3, result.DirectoryCount);
             Assert.Contains(result.Entries, x => x.Path == Path.Combine(root, "one")

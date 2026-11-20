@@ -23,7 +23,7 @@ public sealed class DiskScanner : IDiskScanner
         if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
             throw new IOException("Le dossier sélectionné est un lien ou un point de réanalyse.");
         var stack = new Stack<string>();
-        var sizes = new Dictionary<string, (long Bytes, long Files, long Directories)>(StringComparer.Ordinal);
+        var sizes = new Dictionary<string, (long Bytes, long Files, long Directories, long DirectBytes, long DirectFiles)>(StringComparer.OrdinalIgnoreCase);
         var issues = new List<ScanIssue>();
         const int maxLargestFiles = 200;
         var largestFiles = new PriorityQueue<LargeFileEntry, long>();
@@ -81,7 +81,7 @@ public sealed class DiskScanner : IDiskScanner
                 issues.Add(new ScanIssue(current, ex.Message));
             }
 
-            sizes[current] = (localBytes, localFiles, 0);
+            sizes[current] = (localBytes, localFiles, 0, localBytes, localFiles);
             ReportProgress(current);
         }
 
@@ -95,13 +95,17 @@ public sealed class DiskScanner : IDiskScanner
                 var value = sizes[directory];
                 sizes[parent] = (ancestor.Bytes + value.Bytes,
                     ancestor.Files + value.Files,
-                    ancestor.Directories + value.Directories + 1);
+                    ancestor.Directories + value.Directories + 1, ancestor.DirectBytes, ancestor.DirectFiles);
             }
         }
 
         var entries = sizes
-            .Where(kv => !kv.Key.Equals(root, StringComparison.Ordinal))
-            .Select(kv => new ScanEntry(kv.Key, kv.Value.Bytes, kv.Value.Files, kv.Value.Directories))
+            .Where(kv => !kv.Key.Equals(root, StringComparison.OrdinalIgnoreCase))
+            .Select(kv => new ScanEntry(kv.Key, kv.Value.Bytes, kv.Value.Files, kv.Value.Directories)
+            {
+                DirectBytes = kv.Value.DirectBytes,
+                DirectFileCount = kv.Value.DirectFiles
+            })
             .OrderByDescending(e => e.Bytes)
             .ToArray();
 
@@ -110,7 +114,9 @@ public sealed class DiskScanner : IDiskScanner
         cancellationToken.ThrowIfCancellationRequested();
         return new ScanResult(root, bytes, fileCount, directoryCount, entries, issues, DateTimeOffset.Now)
         {
-            LargestFiles = largestFiles.UnorderedItems.Select(x => x.Element).OrderByDescending(x => x.Bytes).ToArray()
+            LargestFiles = largestFiles.UnorderedItems.Select(x => x.Element).OrderByDescending(x => x.Bytes).ToArray(),
+            RootDirectBytes = sizes[root].DirectBytes,
+            RootDirectFileCount = sizes[root].DirectFiles
         };
 
         void ReportProgress(string current)

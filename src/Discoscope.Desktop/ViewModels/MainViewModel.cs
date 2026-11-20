@@ -15,6 +15,8 @@ public sealed record LargeFileRow(string Path, long Bytes)
     public string Extension => System.IO.Path.GetExtension(Path).ToLowerInvariant();
 }
 
+public sealed record ScanIssueRow(string Path, string Message);
+
 public sealed record TemporaryRow(string Name, string Path, string Size, long Files, long Skipped);
 
 public sealed record DirectoryRow(string Path, long Bytes, long FileCount)
@@ -64,6 +66,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<DirectoryRow> Entries { get; } = [];
     public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
     public ObservableCollection<LargeFileRow> LargestFiles { get; } = [];
+    public ObservableCollection<ScanIssueRow> ScanIssues { get; } = [];
     public IReadOnlyList<DirectoryRow> MapEntries { get; private set; } = [];
     public string MapHint => MapEntries.Count > 0 ? ""
         : _mapIndex.ContainsKey(MapPath) ? "Aucun sous-dossier de taille non nulle." : MapPath;
@@ -213,6 +216,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Entries.Clear();
         TemporaryEntries.Clear();
         LargestFiles.Clear();
+        ScanIssues.Clear();
         _mapIndex.Clear();
         MapPath = "Analyse en cours…";
         SetMapEntries([]);
@@ -260,6 +264,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
             IssuesLabel = result.Issues.Count.ToString("N0");
+            foreach (var issue in result.Issues.Take(2000))
+                ScanIssues.Add(new ScanIssueRow(issue.Path, issue.Message));
             foreach (var file in result.LargestFiles)
                 LargestFiles.Add(new LargeFileRow(file.Path, file.Bytes));
             foreach (var temp in temporaryEntries)

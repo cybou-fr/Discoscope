@@ -160,6 +160,21 @@
 
                     </Grid>
                 </TabItem>
+                <TabItem Header="Avertissements">
+                    <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                        <TextBlock Text="Chemins ignorés ou inaccessibles (2 000 premiers)" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding ScanIssues}" AutoGenerateColumns="False"
+                                  IsReadOnly="True" CanUserAddRows="False" EnableRowVirtualization="True"
+                                  Background="#1A2230" Foreground="White" RowBackground="#1A2230"
+                                  AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Chemin" Binding="{Binding Path}" Width="*"/>
+                                <DataGridTextColumn Header="Raison" Binding="{Binding Message}" Width="1.2*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
                 <TabItem Header="Système">
                     <TabControl Margin="8" Background="{StaticResource PanelBrush}">
                         <TabItem Header="Fichiers temporaires">
