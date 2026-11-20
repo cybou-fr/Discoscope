@@ -114,7 +114,9 @@ public partial class MainWindow : Window
     private void ShowCleanupInventoryStatus()
     {
         if (_cleanupInventory is { } inventory)
-            CleanupStatus.Text = $"{inventory.Count:N0} fichiers · {FormatCleanupBytes(inventory.LogicalBytes)} (taille logique). Sélection par page.";
+            CleanupStatus.Text = inventory.Count == 0
+                ? "Aucun fichier éligible dans cet emplacement."
+                : $"{inventory.Count:N0} fichiers · {FormatCleanupBytes(inventory.LogicalBytes)} (taille logique). Sélection par page.";
     }
 
     private void CancelCleanup(object sender, RoutedEventArgs e)
@@ -142,8 +144,20 @@ public partial class MainWindow : Window
         _cleanupCancellation = null;
         operation?.Dispose();
         _cleanupBusy = false;
+        CleanupProgressBar.Visibility = Visibility.Hidden;
         UpdateCleanupSelection();
         if (_closeAfterCleanup) Dispatcher.BeginInvoke(new Action(Close));
+    }
+
+    private CancellationToken StartCleanup()
+    {
+        _cleanupBusy = true;
+        var cancellation = new CancellationTokenSource();
+        _cleanupCancellation = cancellation;
+        CleanupProgressBar.IsIndeterminate = true;
+        CleanupProgressBar.Visibility = Visibility.Visible;
+        UpdateCleanupSelection();
+        return cancellation.Token;
     }
 
     private void ShowCleanupMessage(string message)
@@ -158,7 +172,9 @@ public partial class MainWindow : Window
         CleanupOverviewButton.IsEnabled = !_cleanupBusy;
         CleanupCancelButton.IsEnabled = _cleanupBusy;
         CleanupLocation.IsEnabled = !_cleanupBusy;
-        CleanupFiles.IsEnabled = !_cleanupBusy;
+        CleanupFiles.IsHitTestVisible = !_cleanupBusy;
+        KeyboardNavigation.SetTabNavigation(CleanupFiles,
+            _cleanupBusy ? KeyboardNavigationMode.None : KeyboardNavigationMode.Continue);
         CleanupRecycleButton.IsEnabled = !_cleanupBusy && CleanupFiles.SelectedItems.Count > 0;
         CleanupRecycleAllButton.IsEnabled = !_cleanupBusy && _cleanupInventory is { Count: > 0 };
         CleanupSelectAllButton.IsEnabled = !_cleanupBusy && CleanupFiles.Items.Count > 0;
@@ -179,14 +195,11 @@ public partial class MainWindow : Window
     private async void PreviewCleanupOverview(object sender, RoutedEventArgs e)
     {
         if (_cleanupBusy) return;
-        _cleanupBusy = true;
-        _cleanupCancellation = new CancellationTokenSource();
-        UpdateCleanupSelection();
+        var token = StartCleanup();
         CleanupOverviewStatus.Text = "Évaluation en cours…";
         CleanupCategories.ItemsSource = null;
         try
         {
-            var token = _cleanupCancellation.Token;
             var userProgress = CleanupProgress<UserTempCleanup.Progress>(p =>
                 CleanupOverviewStatus.Text = $"Utilisateur : {p.Visited:N0} entrées examinées, {p.Eligible:N0} fichiers éligibles…");
             var user = await Task.Run(() => UserTempCleanup.Summarize(
@@ -231,15 +244,12 @@ public partial class MainWindow : Window
     private async void PreviewUserTempCleanup(object sender, RoutedEventArgs e)
     {
         if (_cleanupBusy) return;
-        _cleanupBusy = true;
-        _cleanupCancellation = new CancellationTokenSource();
-        UpdateCleanupSelection();
+        var token = StartCleanup();
         ReleaseCleanupInventory();
         CleanupStatus.Text = "Recherche en cours…";
         try
         {
             var location = SelectedCleanupLocation;
-            var token = _cleanupCancellation!.Token;
             var progress = CleanupProgress<UserTempCleanup.Progress>(p =>
                 CleanupStatus.Text = $"{p.Visited:N0} entrées examinées · {p.Eligible:N0} fichiers · {FormatCleanupBytes(p.LogicalBytes)}…");
             var inventory = await Task.Run(() => UserTempCleanup.CreateInventory(location, token, progress));
@@ -295,15 +305,17 @@ public partial class MainWindow : Window
         Func<CancellationToken, IProgress<UserTempCleanup.RecycleProgress>, UserTempCleanup.RecycleReport> recycle,
         string runningStatus, string completedStatus)
     {
-        _cleanupBusy = true;
-        _cleanupCancellation = new CancellationTokenSource();
-        UpdateCleanupSelection();
+        var token = StartCleanup();
         CleanupStatus.Text = runningStatus;
         try
         {
-            var token = _cleanupCancellation.Token;
             var progress = CleanupProgress<UserTempCleanup.RecycleProgress>(p =>
-                CleanupStatus.Text = $"{p.Processed:N0} / {p.Total:N0} traités · {p.Recycled:N0} déplacés · {p.Skipped:N0} ignorés…");
+            {
+                CleanupProgressBar.Maximum = Math.Max(1, p.Total);
+                CleanupProgressBar.Value = p.Processed;
+                CleanupProgressBar.IsIndeterminate = false;
+                CleanupStatus.Text = $"{p.Processed:N0} / {p.Total:N0} traités · {p.Recycled:N0} déplacés · {p.Skipped:N0} ignorés…";
+            });
             var report = await Task.Run(() => recycle(token, progress));
             _cleanupProgressVersion++;
             ReleaseCleanupInventory();

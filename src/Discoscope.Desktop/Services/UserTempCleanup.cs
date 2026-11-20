@@ -8,6 +8,7 @@ public static class UserTempCleanup
 {
     public sealed record Candidate(string Path, long Bytes, DateTime ModifiedUtc)
     {
+        public string Name => System.IO.Path.GetFileName(Path);
         internal CleanupFileGuard.FileIdentity? Identity { get; init; }
     }
     public sealed record Result(int Recycled, int Skipped, long LogicalBytes);
