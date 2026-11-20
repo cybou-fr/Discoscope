@@ -14,6 +14,14 @@ namespace Discoscope.Desktop;
 public partial class MainWindow : Window
 {
     private bool _cleanupBusy;
+    private sealed record CleanupCategoryRow(string Name, int Count, string Size, Discoscope.Desktop.Services.UserTempCleanup.Location Location);
+
+    private void CleanupCategorySelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (_cleanupBusy || CleanupCategories.SelectedItem is not CleanupCategoryRow row) return;
+        CleanupLocation.SelectedIndex = row.Location == Discoscope.Desktop.Services.UserTempCleanup.Location.User ? 0 : 1;
+        CleanupStatus.Text = "Catégorie choisie. Cliquez sur Rechercher pour voir les fichiers.";
+    }
     private CancellationTokenSource? _cleanupCancellation;
     private Discoscope.Desktop.Services.UserTempCleanup.Location SelectedCleanupLocation =>
         CleanupLocation.SelectedIndex == 1
@@ -25,7 +33,7 @@ public partial class MainWindow : Window
         if (CleanupFiles is null || CleanupStatus is null) return;
         CleanupFiles.ItemsSource = null;
         CleanupStatus.Text = "Recherchez les fichiers de cet emplacement.";
-        if (CleanupPreviewButton is not null && CleanupRecycleButton is not null && CleanupSelectAllButton is not null)
+        if (CleanupPreviewButton is not null && CleanupRecycleButton is not null && CleanupSelectAllButton is not null && CleanupOverviewButton is not null && CleanupCancelButton is not null)
             UpdateCleanupSelection();
     }
 
@@ -65,6 +73,7 @@ public partial class MainWindow : Window
         _cleanupCancellation = new CancellationTokenSource();
         UpdateCleanupSelection();
         CleanupOverviewStatus.Text = "Évaluation en cours…";
+        CleanupCategories.ItemsSource = null;
         try
         {
             var token = _cleanupCancellation.Token;
@@ -79,8 +88,12 @@ public partial class MainWindow : Window
                     bytes = bytes > long.MaxValue - item.Bytes ? long.MaxValue : bytes + item.Bytes;
                 return bytes;
             }
-            CleanupOverviewStatus.Text = $"Utilisateur : {user.Count:N0} fichiers / {FormatCleanupBytes(Total(user))} · " +
-                $"Windows : {windows.Count:N0} fichiers / {FormatCleanupBytes(Total(windows))} (tailles logiques, 500 max. chacun).";
+            CleanupCategories.ItemsSource = new[]
+            {
+                new CleanupCategoryRow("Temporaires utilisateur", user.Count, FormatCleanupBytes(Total(user)), Discoscope.Desktop.Services.UserTempCleanup.Location.User),
+                new CleanupCategoryRow("Temporaires Windows", windows.Count, FormatCleanupBytes(Total(windows)), Discoscope.Desktop.Services.UserTempCleanup.Location.Windows)
+            };
+            CleanupOverviewStatus.Text = "Sélectionnez une catégorie ci-dessous pour consulter ses fichiers (500 max. par catégorie).";
         }
         catch (OperationCanceledException)
         {
