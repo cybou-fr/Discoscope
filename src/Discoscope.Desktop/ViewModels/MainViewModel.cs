@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Discoscope.Core.Models;
@@ -32,7 +34,7 @@ internal static class SizeFormatter
             value /= 1024;
             unit++;
         }
-        return $"{value:N1} {units[unit]}";
+        return string.Create(CultureInfo.GetCultureInfo("fr-FR"), $"{value:N1} {units[unit]}");
     }
 }
 
@@ -49,12 +51,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _volumeLabel = "—";
     private string _freeLabel = "—";
     private string _mapPath = "Aucune analyse";
-    private Dictionary<string, DirectoryRow[]> _mapIndex = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, DirectoryRow[]> _mapIndex = new(StringComparer.Ordinal);
     private string _mapRoot = "";
     private string _vssStatus = "Non analysé";
     private string _vssReport = "L’analyse VSS est disponible séparément.";
     private string _componentStatus = "Non analysé";
-    private string _componentReport = "L’analyse DISM est disponible après le parcours du disque.";
+    private string _componentReport = "L’analyse DISM est disponible séparément.";
 
     public ObservableCollection<string> Drives { get; } = new(
         DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.RootDirectory.FullName));
@@ -62,7 +64,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<DirectoryRow> Entries { get; } = [];
     public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
     public ObservableCollection<LargeFileRow> LargestFiles { get; } = [];
-    public ObservableCollection<DirectoryRow> MapEntries { get; } = [];
+    public IReadOnlyList<DirectoryRow> MapEntries { get; private set; } = [];
+    public string MapHint => MapEntries.Count > 0 ? ""
+        : _mapIndex.ContainsKey(MapPath) ? "Aucun sous-dossier de taille non nulle." : MapPath;
+    public bool IsBusy => _isScanning;
+    public bool CanSelectDrive => !IsBusy;
     public string MapPath { get => _mapPath; private set { _mapPath = value; Changed(); } }
     public RelayCommand NavigateBackCommand { get; }
     public ParameterCommand NavigateMapCommand { get; }
@@ -91,7 +97,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CancelCommand = new RelayCommand(() => _scanCancellation?.Cancel(), () => _isScanning);
         AnalyzeWindowsCommand = new RelayCommand(() => _ = AnalyzeWindowsAsync(), () => !_isScanning);
         AnalyzeVssCommand = new RelayCommand(() => _ = AnalyzeVssAsync(), () => !_isScanning);
-        NavigateBackCommand = new RelayCommand(NavigateBack, () => !_isScanning && !string.Equals(_mapPath, _mapRoot, StringComparison.OrdinalIgnoreCase) && _mapIndex.ContainsKey(_mapPath));
+        NavigateBackCommand = new RelayCommand(NavigateBack, () => !_isScanning && _mapPath != _mapRoot && _mapIndex.ContainsKey(_mapPath));
         NavigateMapCommand = new ParameterCommand(p => { if (p is string path) ShowMap(path); }, p => !_isScanning && p is string path && _mapIndex.ContainsKey(path));
     }
 
@@ -99,11 +105,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (!_mapIndex.TryGetValue(path, out var children)) return;
         MapPath = path;
-        MapEntries.Clear();
-        foreach (var child in children.OrderByDescending(x => x.Bytes).Take(24))
-            MapEntries.Add(child);
+        SetMapEntries(children.Where(x => x.Bytes > 0).Take(24).ToArray());
         NavigateBackCommand.RaiseCanExecuteChanged();
         NavigateMapCommand.RaiseCanExecuteChanged();
+    }
+
+    private void SetMapEntries(IReadOnlyList<DirectoryRow> entries)
+    {
+        MapEntries = entries;
+        Changed(nameof(MapEntries));
+        Changed(nameof(MapHint));
     }
 
     private void NavigateBack()
@@ -148,6 +159,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void RefreshCommands()
     {
+        Changed(nameof(IsBusy));
+        Changed(nameof(CanSelectDrive));
         ScanCommand.RaiseCanExecuteChanged();
         AnalyzeWindowsCommand.RaiseCanExecuteChanged();
         AnalyzeVssCommand.RaiseCanExecuteChanged();
@@ -168,7 +181,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var result = await new WindowsComponentInspector().InspectAsync(_scanCancellation.Token);
             ComponentStatus = result.Status;
-            ComponentReport = result.RawOutput ?? result.Details;
+            ComponentReport = string.IsNullOrWhiteSpace(result.RawOutput)
+                ? result.Details
+                : result.Details + Environment.NewLine + result.RawOutput;
         }
         catch (OperationCanceledException)
         {
@@ -191,18 +206,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private async Task ScanAsync()
     {
         if (_isScanning || SelectedDrive is null) return;
+        var root = SelectedDrive;
         _isScanning = true;
         RefreshCommands();
         _scanCancellation = new CancellationTokenSource();
         Entries.Clear();
         TemporaryEntries.Clear();
         LargestFiles.Clear();
-        MapEntries.Clear();
         _mapIndex.Clear();
         MapPath = "Analyse en cours…";
+        SetMapEntries([]);
         try
         {
-            var volume = new VolumeInspector().Inspect(SelectedDrive);
+            var volume = await Task.Run(() => new VolumeInspector().Inspect(root));
             VolumeLabel = "Occupé : " + SizeFormatter.Format(volume.UsedBytes);
             FreeLabel = "Libre : " + SizeFormatter.Format(volume.FreeBytes);
         }
@@ -213,38 +229,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
         FilesLabel = SizeLabel = IssuesLabel = "…";
         Status = "Analyse en cours…";
         var activeScan = _scanCancellation;
+        bool acceptProgress = true;
         var progress = new Progress<ScanProgress>(p =>
         {
-            if (!_isScanning || !ReferenceEquals(_scanCancellation, activeScan)) return;
+            if (!acceptProgress || !ReferenceEquals(_scanCancellation, activeScan)) return;
             FilesLabel = p.Files.ToString("N0");
             SizeLabel = SizeFormatter.Format(p.Bytes);
             Status = $"Analyse : {p.CurrentPath}";
         });
-        /* old progress */
-        /*
-        {
-            FilesLabel = p.Files.ToString("N0");
-            SizeLabel = SizeFormatter.Format(p.Bytes);
-            Status = $"Analyse : {p.CurrentPath}";
-        }); */
-
         try
         {
-            var result = await _scanner.ScanAsync(SelectedDrive, progress, _scanCancellation.Token);
-            _isScanning = false; // Ignore queued Progress<T> callbacks after completion.
+            var result = await _scanner.ScanAsync(root, progress, activeScan.Token);
+            acceptProgress = false;
+            Status = "Analyse des emplacements temporaires…";
+            var temporaryEntries = await new TemporaryFilesInspector().InspectAsync(activeScan.Token);
+            var mapIndex = await Task.Run(() =>
+            {
+                var rows = result.Entries.Select(e => new DirectoryRow(e.Path, e.Bytes, e.FileCount)).ToArray();
+                var index = rows.GroupBy(e => Path.GetDirectoryName(e.Path) ?? "", StringComparer.Ordinal)
+                    .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+                index.TryAdd(result.Root, []);
+                foreach (var row in rows)
+                {
+                    activeScan.Token.ThrowIfCancellationRequested();
+                    index.TryAdd(row.Path, []);
+                }
+                return index;
+            }, activeScan.Token);
+            activeScan.Token.ThrowIfCancellationRequested();
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
             IssuesLabel = result.Issues.Count.ToString("N0");
             foreach (var file in result.LargestFiles)
                 LargestFiles.Add(new LargeFileRow(file.Path, file.Bytes));
-            foreach (var temp in await new TemporaryFilesInspector().InspectAsync(_scanCancellation.Token))
+            foreach (var temp in temporaryEntries)
                 TemporaryEntries.Add(new TemporaryRow(temp.Name, temp.Path, SizeFormatter.Format(temp.LogicalBytes), temp.FileCount, temp.SkippedCount));
             _mapRoot = Path.TrimEndingDirectorySeparator(result.Root);
-            _mapIndex = result.Entries
-                .Select(e => new DirectoryRow(e.Path, e.Bytes, e.FileCount))
-                .GroupBy(e => Path.TrimEndingDirectorySeparator(
-                    Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(e.Path)) ?? ""), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
+            _mapIndex = mapIndex;
             ShowMap(_mapRoot);
             foreach (var entry in result.Entries.Take(300))
                 Entries.Add(new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount));
@@ -253,10 +274,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (OperationCanceledException)
         {
             Status = "Analyse annulée.";
+            MapPath = Status;
+            SetMapEntries([]);
+            FilesLabel = SizeLabel = IssuesLabel = "—";
         }
         catch (Exception ex)
         {
             Status = $"Échec de l'analyse : {ex.Message}";
+            MapPath = "Analyse indisponible";
+            SetMapEntries([]);
+            FilesLabel = SizeLabel = IssuesLabel = "—";
         }
         finally
         {

@@ -21,8 +21,15 @@ public sealed class TemporaryFilesInspector
                 result.Add(new TemporaryLocation(name, full, 0, 0, 0, false));
                 continue;
             }
-            var scan = await new DiskScanner().ScanAsync(full, null, token);
-            result.Add(new TemporaryLocation(name, full, scan.TotalBytes, scan.FileCount, scan.Issues.Count, true));
+            try
+            {
+                var scan = await new DiskScanner().ScanAsync(full, null, token);
+                result.Add(new TemporaryLocation(name, full, scan.TotalBytes, scan.FileCount, scan.Issues.Count, true));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                result.Add(new TemporaryLocation(name, full, 0, 0, 1, false));
+            }
         }
         return result;
     }

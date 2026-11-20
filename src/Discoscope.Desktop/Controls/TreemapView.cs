@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Input;
 using Discoscope.Desktop.ViewModels;
@@ -51,20 +50,20 @@ public sealed class TreemapView : FrameworkElement
         if (items.Length == 0) return;
 
         // Slice-and-dice: exact proportional areas, bounded number of rendered rectangles.
-        double total = items.Sum(x => (double)x.Bytes);
+        var remainingBytes = new double[items.Length + 1];
+        for (int i = items.Length - 1; i >= 0; i--)
+            remainingBytes[i] = remainingBytes[i + 1] + items[i].Bytes;
         var bounds = new Rect(0, 0, width, height);
         for (int i = 0; i < items.Length; i++)
         {
             var item = items[i];
-            double share = item.Bytes / total;
+            double share = item.Bytes / remainingBytes[i];
             var rect = bounds.Width >= bounds.Height
                 ? new Rect(bounds.X, bounds.Y, bounds.Width * share, bounds.Height)
                 : new Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height * share);
             bounds = bounds.Width >= bounds.Height
                 ? new Rect(bounds.X + rect.Width, bounds.Y, bounds.Width - rect.Width, bounds.Height)
                 : new Rect(bounds.X, bounds.Y + rect.Height, bounds.Width, bounds.Height - rect.Height);
-            // Recompute relative shares for the remaining unallocated area.
-            total -= item.Bytes;
             if (rect.Width < 2 || rect.Height < 2) continue;
             _hitAreas.Add((rect, item));
             var color = Color.FromRgb((byte)(33 + i * 5 % 35), (byte)(105 + i * 11 % 65), (byte)(150 + i * 7 % 85));

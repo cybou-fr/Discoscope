@@ -9,8 +9,25 @@
         <SolidColorBrush x:Key="MutedBrush" Color="#A5B4C8"/>
         <SolidColorBrush x:Key="AccentBrush" Color="#61D9D1"/>
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="HeaderTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#10151F"/>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#273448"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Padding" Value="8,5"/>
         </Style>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="18,10"/>

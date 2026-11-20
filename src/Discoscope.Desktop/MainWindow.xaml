@@ -2,17 +2,18 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Discoscope.Desktop.Controls"
+        Foreground="{StaticResource TextBrush}" FontFamily="Segoe UI"
         Title="Discoscope — Analyse de l'espace disque" Width="1200" Height="790"
         MinWidth="900" MinHeight="620" Background="{StaticResource CanvasBrush}"
-        WindowStartupLocation="CenterScreen">
-    <Grid Margin="32">
+        WindowStartupLocation="CenterScreen" Language="fr-FR" UseLayoutRounding="True">
+    <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="28"/>
+            <RowDefinition Height="14"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="22"/>
+            <RowDefinition Height="12"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="22"/>
+            <RowDefinition Height="12"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -24,7 +25,7 @@
             <TextBlock Text="ANALYSE LOCALE · LECTURE SEULE" HorizontalAlignment="Right"
                        Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
         </DockPanel>
-        <Border Grid.Row="2" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+        <Border Grid.Row="2" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -32,15 +33,15 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="Lecteur ou dossier à analyser" FontWeight="SemiBold" Margin="0,0,0,9"/>
+                    <TextBlock Text="Lecteur à analyser" FontWeight="SemiBold" Margin="0,0,0,9"/>
                     <ComboBox ItemsSource="{Binding Drives}" SelectedItem="{Binding SelectedDrive}" 
-                              MinHeight="36" MaxWidth="450" HorizontalAlignment="Stretch"
+                              IsEnabled="{Binding CanSelectDrive}" MinHeight="36" Width="240" HorizontalAlignment="Left"
                               Background="#273448" Foreground="#10151F"/>
                 </StackPanel>
                 <Button Grid.Column="1" Content="Analyser" Command="{Binding ScanCommand}"
                         Margin="18,18,0,0" MinWidth="118"/>
                 <Button Grid.Column="2" Content="Annuler" Command="{Binding CancelCommand}"
-                        Margin="10,18,0,0" Background="#34465A" Foreground="White"/>
+                        Margin="10,18,0,0"/>
             </Grid>
         </Border>
         <StackPanel Grid.Row="4">
@@ -55,63 +56,75 @@
                 <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Border Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+            <Border Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="12">
                 <StackPanel>
                     <TextBlock Text="Fichiers analysés" Foreground="{StaticResource MutedBrush}"/>
                     <TextBlock Text="{Binding FilesLabel}" FontSize="26" FontWeight="SemiBold" Margin="0,10,0,0"/>
                 </StackPanel>
             </Border>
-            <Border Grid.Column="2" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+            <Border Grid.Column="2" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="12">
                 <StackPanel>
                     <TextBlock Text="Taille logique analysée" Foreground="{StaticResource MutedBrush}"/>
                     <TextBlock Text="{Binding SizeLabel}" FontSize="26" FontWeight="SemiBold" Margin="0,10,0,0"/>
                 </StackPanel>
             </Border>
-            <Border Grid.Column="4" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="20">
+            <Border Grid.Column="4" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="12">
                 <StackPanel>
-                    <TextBlock Text="Accès / avertissements" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock Text="Avertissements" Foreground="{StaticResource MutedBrush}"/>
                     <TextBlock Text="{Binding IssuesLabel}" FontSize="26" FontWeight="SemiBold" Margin="0,10,0,0"/>
                 </StackPanel>
             </Border>
             </Grid>
         </StackPanel>
         <Border Grid.Row="6" Background="{StaticResource PanelBrush}" CornerRadius="12" Padding="16">
-            <TabControl Background="{StaticResource PanelBrush}" Foreground="#10151F">
+            <TabControl Background="{StaticResource PanelBrush}">
                 <TabItem Header="Vue d'ensemble">
-                    <Grid Margin="8">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="2*"/>
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Dossiers les plus volumineux" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                                        <DataGrid Grid.Row="1" ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
-                          IsReadOnly="True" HeadersVisibility="Column" Background="#1A2230"
-                          Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
-                          BorderThickness="0" GridLinesVisibility="None" RowHeight="32"
-                          CanUserAddRows="False" EnableRowVirtualization="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Dossier" Binding="{Binding Path}" Width="*"/>
-                        <DataGridTextColumn Header="Taille" Binding="{Binding SizeLabel}" Width="125"/>
-                        <DataGridTextColumn Header="Fichiers" Binding="{Binding FileCount}" Width="110"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-
-                        <TextBlock Grid.Row="2" Text="Carte des dossiers — cliquez pour explorer" FontWeight="SemiBold" Margin="0,12,0,8"/>
-                        <Grid Grid.Row="3">
-                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                                            <DockPanel Grid.Row="0" Margin="0,10,0,8">
-                    <Button Content="Retour" Command="{Binding NavigateBackCommand}" DockPanel.Dock="Right" Padding="10,3"/>
-                    <TextBlock Text="{Binding MapPath}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="{Binding MapPath}"/>
-                </DockPanel>
-                <controls:TreemapView Grid.Row="1" Items="{Binding MapEntries}" NavigateCommand="{Binding NavigateMapCommand}" Cursor="Hand" ToolTip="Cliquez sur un dossier pour explorer son contenu"/>
-
+                    <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="1.2*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Dossiers les plus volumineux" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <DataGrid Grid.Row="1" ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
+                                      IsReadOnly="True" HeadersVisibility="Column" Background="#1A2230"
+                                      Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
+                                      BorderThickness="0" GridLinesVisibility="None" RowHeight="32"
+                                      CanUserAddRows="False" EnableRowVirtualization="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Dossier" Binding="{Binding Path}" Width="*"/>
+                                    <DataGridTextColumn Header="Taille" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="95"/>
+                                    <DataGridTextColumn Header="Fichiers" Binding="{Binding FileCount}" Width="75"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Carte des dossiers" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <DockPanel Grid.Row="1" Margin="0,0,0,8">
+                                <Button Content="Retour" Command="{Binding NavigateBackCommand}"
+                                        DockPanel.Dock="Right" Padding="10,3" Margin="8,0,0,0"/>
+                                <TextBlock Text="{Binding MapPath}" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" ToolTip="{Binding MapPath}"/>
+                            </DockPanel>
+                            <controls:TreemapView Grid.Row="2" Items="{Binding MapEntries}" NavigateCommand="{Binding NavigateMapCommand}"
+                                                  ToolTip="Cliquez sur un dossier pour explorer son contenu"/>
+                            <TextBlock Grid.Row="2" Text="{Binding MapHint}" IsHitTestVisible="False" TextWrapping="Wrap"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
                         </Grid>
                     </Grid>
                 </TabItem>
                 <TabItem Header="Explorateur">
-                    <Grid Margin="8">
+                    <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                         <TextBlock Text="Dossiers classés par taille logique" FontWeight="SemiBold" Margin="0,0,0,10"/>
                                         <DataGrid Grid.Row="1" ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
@@ -121,7 +134,7 @@
                           CanUserAddRows="False" EnableRowVirtualization="True">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Dossier" Binding="{Binding Path}" Width="*"/>
-                        <DataGridTextColumn Header="Taille" Binding="{Binding SizeLabel}" Width="125"/>
+                        <DataGridTextColumn Header="Taille" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="125"/>
                         <DataGridTextColumn Header="Fichiers" Binding="{Binding FileCount}" Width="110"/>
                     </DataGrid.Columns>
                 </DataGrid>
@@ -129,7 +142,7 @@
                     </Grid>
                 </TabItem>
                 <TabItem Header="Fichiers volumineux">
-                    <Grid Margin="8">
+                    <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                         <TextBlock Text="Les 200 plus grands fichiers accessibles" FontWeight="SemiBold" Margin="0,0,0,10"/>
                                         <DataGrid Grid.Row="1" ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False"
@@ -139,16 +152,16 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Fichier" Binding="{Binding Path}" Width="*"/>
                         <DataGridTextColumn Header="Type" Binding="{Binding Extension}" Width="100"/>
-                        <DataGridTextColumn Header="Taille logique" Binding="{Binding SizeLabel}" Width="130"/>
+                        <DataGridTextColumn Header="Taille logique" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="130"/>
                     </DataGrid.Columns>
                 </DataGrid>
 
                     </Grid>
                 </TabItem>
                 <TabItem Header="Système">
-                    <TabControl Margin="8" Background="{StaticResource PanelBrush}" Foreground="#10151F">
+                    <TabControl Margin="8" Background="{StaticResource PanelBrush}">
                         <TabItem Header="Fichiers temporaires">
-                            <Grid Margin="8">
+                            <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                 <TextBlock Text="Emplacements temporaires — diagnostic uniquement" FontWeight="SemiBold" Margin="0,0,0,10"/>
                                                 <DataGrid Grid.Row="1" ItemsSource="{Binding TemporaryEntries}" AutoGenerateColumns="False" IsReadOnly="True" Background="#1A2230" Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
@@ -164,14 +177,14 @@
                             </Grid>
                         </TabItem>
                         <TabItem Header="Composants et clichés">
-                                            <TabControl Margin="0,10,0,0" Background="#1A2230" Foreground="#10151F">
+                                            <TabControl Margin="0,10,0,0" Background="#1A2230">
                     <TabItem Header="Composants Windows · DISM">
                         <DockPanel Background="#1A2230" LastChildFill="True">
                             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,7,0,7">
                                 <Button Content="Analyser les composants" Command="{Binding AnalyzeWindowsCommand}"/>
                                 <TextBlock Text="{Binding ComponentStatus}" Foreground="{StaticResource AccentBrush}" Margin="12,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
-                            <TextBox Text="{Binding ComponentReport}" IsReadOnly="True" TextWrapping="NoWrap"
+                            <TextBox Text="{Binding ComponentReport, Mode=OneWay}" IsReadOnly="True" TextWrapping="NoWrap"
                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas"
                                      Background="#10151F" Foreground="#EFF4FC" BorderThickness="0"/>
                         </DockPanel>
@@ -182,7 +195,7 @@
                                 <Button Content="Analyser les clichés VSS" Command="{Binding AnalyzeVssCommand}"/>
                                 <TextBlock Text="{Binding VssStatus}" Foreground="{StaticResource AccentBrush}" Margin="12,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
-                            <TextBox Text="{Binding VssReport}" IsReadOnly="True" TextWrapping="NoWrap"
+                            <TextBox Text="{Binding VssReport, Mode=OneWay}" IsReadOnly="True" TextWrapping="NoWrap"
                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas"
                                      Background="#10151F" Foreground="#EFF4FC" BorderThickness="0"/>
                         </DockPanel>
@@ -194,7 +207,19 @@
                 </TabItem>
             </TabControl>
         </Border>
-        <StackPanel Grid.Row="7" Margin="0,17,0,0">
+        <StackPanel Grid.Row="7" Margin="0,10,0,0">
+            <ProgressBar Height="3" Margin="0,0,0,5" IsIndeterminate="{Binding IsBusy}">
+                <ProgressBar.Style>
+                    <Style TargetType="ProgressBar">
+                        <Setter Property="Visibility" Value="Hidden"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ProgressBar.Style>
+            </ProgressBar>
             <TextBlock Text="{Binding Status}" Foreground="{StaticResource AccentBrush}" TextTrimming="CharacterEllipsis"/>
             <TextBlock Text="Les fichiers système protégés, les liens NTFS et les clichés VSS nécessitent une analyse distincte. Aucune suppression n'est effectuée."
                        Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,7,0,0" TextWrapping="Wrap"/>

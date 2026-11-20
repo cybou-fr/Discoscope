@@ -18,19 +18,18 @@ Prérequis : Windows 10/11 et SDK .NET 10.
 
 ```powershell
 dotnet restore Discoscope.slnx
-dotnet run --project src/Discoscope.Desktop
+dotnet build Discoscope.slnx -c Release
+dotnet run --project src/Discoscope.Desktop -c Release --no-build
 ```
 
 Tests :
 ```powershell
-dotnet test tests/Discoscope.Core.Tests
+dotnet test Discoscope.slnx -c Release
 ```
 
 ### Limites techniques du prototype
 
 Les tailles affichées sont les **tailles logiques des fichiers accessibles**, et non l'espace réellement alloué sur le volume. Les liens de réanalyse ne sont pas suivis ; les liens physiques NTFS, les fichiers compressés ou clairsemés et les zones protégées peuvent produire des écarts avec l'espace occupé annoncé par Windows. Certains répertoires nécessitent des privilèges élevés. Les avertissements d'accès sont comptabilisés sans masquer ces limites.
-
-Les versions suivantes ajouteront des sources spécifiques Windows (VSS, DISM, réserves système, Windows Update) et un moteur d'actions de nettoyage avec prévisualisation, confirmation explicite et exécution via les API Windows adaptées. **Aucun fichier système n'est supprimé directement.**
 
 ## Développement
 
@@ -40,7 +39,7 @@ Le diagnostic des dossiers temporaires utilisateur et Windows est en lecture seu
 
 ### Diagnostic Windows
 
-Le bouton **Analyser Windows** lance uniquement `DISM /Online /Cleanup-Image /AnalyzeComponentStore /English`. Le rapport brut est affiché, sans interprétation trompeuse des tailles. Aucun nettoyage ni opération de réparation n’est exécuté. DISM peut nécessiter une élévation des privilèges ; une annulation interrompt le processus lancé.
+Le bouton **Analyser les composants** lance uniquement `DISM /Online /Cleanup-Image /AnalyzeComponentStore /English`. La sortie brute et les erreurs éventuelles sont affichées. DISM peut nécessiter des droits administrateur. Le bouton **Annuler** interrompt la commande et le délai maximal est de quatre minutes.
 
 ### Clichés instantanés VSS
 
