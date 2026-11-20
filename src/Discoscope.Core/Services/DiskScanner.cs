@@ -11,10 +11,14 @@ public sealed class DiskScanner : IDiskScanner
 {
     public Task<ScanResult> ScanAsync(
         string root, IProgress<ScanProgress>? progress, CancellationToken cancellationToken) =>
-        Task.Run(() => Scan(root, progress, cancellationToken), cancellationToken);
+        ScanAsync(root, progress, retainFiles: true, cancellationToken);
+
+    internal Task<ScanResult> ScanAsync(
+        string root, IProgress<ScanProgress>? progress, bool retainFiles, CancellationToken cancellationToken) =>
+        Task.Run(() => Scan(root, progress, retainFiles, cancellationToken), cancellationToken);
 
     private static ScanResult Scan(
-        string root, IProgress<ScanProgress>? progress, CancellationToken cancellationToken)
+        string root, IProgress<ScanProgress>? progress, bool retainFiles, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
             throw new DirectoryNotFoundException("Le dossier ou lecteur sélectionné est introuvable.");
@@ -22,12 +26,13 @@ public sealed class DiskScanner : IDiskScanner
         root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
             throw new IOException("Le dossier sélectionné est un lien ou un point de réanalyse.");
-        var stack = new Stack<string>();
-        var sizes = new Dictionary<string, (long Bytes, long Files, long Directories, long DirectBytes, long DirectFiles)>(StringComparer.OrdinalIgnoreCase);
+        var rootDirectory = new ScanDirectory(root, null);
+        var stack = new Stack<ScanDirectory>();
+        var visited = new List<ScanDirectory>();
         var issues = new List<ScanIssue>();
         const int maxLargestFiles = 200;
         var largestFiles = new PriorityQueue<LargeFileEntry, long>();
-        stack.Push(root);
+        stack.Push(rootDirectory);
 
         long fileCount = 0, directoryCount = 0, bytes = 0;
         var lastReport = Environment.TickCount64;
@@ -40,34 +45,41 @@ public sealed class DiskScanner : IDiskScanner
         while (stack.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var current = stack.Pop();
+            var directory = stack.Pop();
+            var current = directory.Path;
+            visited.Add(directory);
+            var directories = new List<ScanDirectory>();
+            List<ScanFile>? files = retainFiles ? [] : null;
             directoryCount++;
             long localBytes = 0, localFiles = 0;
 
             try
             {
-                var children = new FileSystemEnumerable<(string Path, FileAttributes Attributes, long Length)>(
-                    current, (ref FileSystemEntry entry) => (entry.ToFullPath(), entry.Attributes, entry.Length),
+                var children = new FileSystemEnumerable<(string Name, FileAttributes Attributes, long Length)>(
+                    current, (ref FileSystemEntry entry) => (entry.FileName.ToString(), entry.Attributes, entry.Length),
                     enumerationOptions);
-                foreach (var (path, attributes, length) in children)
+                foreach (var (name, attributes, length) in children)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     if ((attributes & FileAttributes.ReparsePoint) != 0)
                     {
-                        issues.Add(new ScanIssue(path, "Lien ou point de réanalyse ignoré."));
+                        issues.Add(new ScanIssue(Path.Join(current, name), "Lien ou point de réanalyse ignoré."));
                         continue;
                     }
 
                     if ((attributes & FileAttributes.Directory) != 0)
                     {
-                        stack.Push(path);
+                        var child = new ScanDirectory(Path.Join(current, name), directory);
+                        directories.Add(child);
+                        stack.Push(child);
                     }
                     else
                     {
+                        files?.Add(new ScanFile(name, length));
                         if (largestFiles.Count < maxLargestFiles)
-                            largestFiles.Enqueue(new LargeFileEntry(path, length), length);
+                            largestFiles.Enqueue(new LargeFileEntry(Path.Join(current, name), length), length);
                         else if (largestFiles.TryPeek(out _, out long smallest) && length > smallest)
-                            largestFiles.DequeueEnqueue(new LargeFileEntry(path, length), length);
+                            largestFiles.DequeueEnqueue(new LargeFileEntry(Path.Join(current, name), length), length);
                         localBytes += length;
                         localFiles++;
                         bytes += length;
@@ -81,32 +93,31 @@ public sealed class DiskScanner : IDiskScanner
                 issues.Add(new ScanIssue(current, ex.Message));
             }
 
-            sizes[current] = (localBytes, localFiles, 0, localBytes, localFiles);
+            directory.Directories = directories.ToArray();
+            directory.Files = files?.ToArray() ?? [];
+            directory.DirectBytes = directory.Bytes = localBytes;
+            directory.DirectFileCount = directory.FileCount = localFiles;
             ReportProgress(current);
         }
 
-        // Walk bottom-up so that each directory includes all descendant file sizes.
-        foreach (var directory in sizes.Keys.OrderByDescending(p => p.Length).ToArray())
+        // Each parent was visited before its children. Reverse order aggregates in linear time.
+        for (int i = visited.Count - 1; i > 0; i--)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(directory));
-            if (parent is not null && sizes.TryGetValue(parent, out var ancestor))
-            {
-                var value = sizes[directory];
-                sizes[parent] = (ancestor.Bytes + value.Bytes,
-                    ancestor.Files + value.Files,
-                    ancestor.Directories + value.Directories + 1, ancestor.DirectBytes, ancestor.DirectFiles);
-            }
+            var directory = visited[i];
+            var parent = directory.Parent!;
+            parent.Bytes += directory.Bytes;
+            parent.FileCount += directory.FileCount;
+            parent.DirectoryCount += directory.DirectoryCount + 1;
         }
 
-        var entries = sizes
-            .Where(kv => !kv.Key.Equals(root, StringComparison.OrdinalIgnoreCase))
-            .Select(kv => new ScanEntry(kv.Key, kv.Value.Bytes, kv.Value.Files, kv.Value.Directories)
+        var entries = visited.Skip(1)
+            .Select(directory => new ScanEntry(directory.Path, directory.Bytes, directory.FileCount, directory.DirectoryCount)
             {
-                DirectBytes = kv.Value.DirectBytes,
-                DirectFileCount = kv.Value.DirectFiles
+                DirectBytes = directory.DirectBytes,
+                DirectFileCount = directory.DirectFileCount
             })
-            .OrderByDescending(e => e.Bytes)
+            .OrderByDescending(entry => entry.Bytes)
             .ToArray();
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -115,8 +126,9 @@ public sealed class DiskScanner : IDiskScanner
         return new ScanResult(root, bytes, fileCount, directoryCount, entries, issues, DateTimeOffset.Now)
         {
             LargestFiles = largestFiles.UnorderedItems.Select(x => x.Element).OrderByDescending(x => x.Bytes).ToArray(),
-            RootDirectBytes = sizes[root].DirectBytes,
-            RootDirectFileCount = sizes[root].DirectFiles
+            Hierarchy = retainFiles ? rootDirectory : null,
+            RootDirectBytes = rootDirectory.DirectBytes,
+            RootDirectFileCount = rootDirectory.DirectFileCount
         };
 
         void ReportProgress(string current)

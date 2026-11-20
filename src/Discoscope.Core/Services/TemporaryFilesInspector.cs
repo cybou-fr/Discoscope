@@ -23,7 +23,7 @@ public sealed class TemporaryFilesInspector
             }
             try
             {
-                var scan = await new DiskScanner().ScanAsync(full, null, token);
+                var scan = await new DiskScanner().ScanAsync(full, null, retainFiles: false, token);
                 result.Add(new TemporaryLocation(name, full, scan.TotalBytes, scan.FileCount, scan.Issues.Count, true));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)

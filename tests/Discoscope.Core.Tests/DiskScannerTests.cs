@@ -33,6 +33,16 @@ public sealed class DiskScannerTests
             Assert.Contains(result.Entries, x => x.Path == Path.Combine(root, "one", "two") && x.Bytes == 64);
             Assert.Equal(new ScanProgress(2, 3, 192, root), progress.Last);
             Assert.Equal(128, new FileInfo(Path.Combine(root, "one", "first.bin")).Length);
+            var hierarchy = Assert.IsType<ScanDirectory>(result.Hierarchy);
+            var one = Assert.Single(hierarchy.Directories);
+            Assert.Same(hierarchy, one.Parent);
+            Assert.Equal(192, one.Bytes);
+            Assert.Equal(128, one.DirectBytes);
+            Assert.Equal(1, one.DirectFileCount);
+            Assert.Equal(new ScanFile("first.bin", 128), Assert.Single(one.Files));
+            var two = Assert.Single(one.Directories);
+            Assert.Equal(Path.Combine(root, "one", "two", "second.bin"),
+                Path.Combine(two.Path, Assert.Single(two.Files).Name));
         }
         finally
         {
@@ -115,6 +125,7 @@ public sealed class DiskScannerTests
             Assert.Equal(1, result.FileCount);
             Assert.Equal(7, result.TotalBytes);
             Assert.Contains(result.Issues, issue => issue.Path == blocked.FullName);
+            Assert.Empty(Assert.Single(result.Hierarchy!.Directories).Files);
         }
         finally
         {
@@ -155,6 +166,37 @@ public sealed class DiskScannerTests
         finally
         {
             if (Directory.Exists(junction)) Directory.Delete(junction);
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Scan_AggregatesDeepHierarchyAndKeepsRootFilesSeparate()
+    {
+        var root = Directory.CreateTempSubdirectory("DiscoscopeTests-");
+        try
+        {
+            var deepest = root;
+            for (int i = 0; i < 64; i++)
+                deepest = deepest.CreateSubdirectory("d");
+            File.WriteAllText(Path.Combine(root.FullName, "root.txt"), "abc");
+            File.WriteAllText(Path.Combine(deepest.FullName, "leaf.txt"), "12345");
+
+            var result = await new DiskScanner().ScanAsync(root.FullName, null, CancellationToken.None);
+            Assert.Equal(65, result.DirectoryCount);
+            Assert.Equal(8, result.TotalBytes);
+            var directory = Assert.IsType<ScanDirectory>(result.Hierarchy);
+            Assert.Equal(3, directory.DirectBytes);
+            Assert.Equal(new ScanFile("root.txt", 3), Assert.Single(directory.Files));
+            for (int i = 0; i < 64; i++)
+            {
+                directory = Assert.Single(directory.Directories);
+                Assert.Equal(5, directory.Bytes);
+            }
+            Assert.Equal(new ScanFile("leaf.txt", 5), Assert.Single(directory.Files));
+        }
+        finally
+        {
             root.Delete(recursive: true);
         }
     }

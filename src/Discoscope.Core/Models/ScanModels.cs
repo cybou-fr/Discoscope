@@ -20,4 +20,5 @@ public sealed record ScanResult(
     public IReadOnlyList<LargeFileEntry> LargestFiles { get; init; } = [];
     public long RootDirectBytes { get; init; }
     public long RootDirectFileCount { get; init; }
+    public ScanDirectory? Hierarchy { get; init; }
 }
