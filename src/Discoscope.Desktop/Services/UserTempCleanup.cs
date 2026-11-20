@@ -10,7 +10,6 @@ public static class UserTempCleanup
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(location == Location.User
             ? Path.GetTempPath()
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp")));
-    private static string Root => GetRoot(Location.User);
     private static bool Allowed(string path, string root)
     {
         if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0) return false;
@@ -29,10 +28,11 @@ public static class UserTempCleanup
     {
         var root = GetRoot(location);
         var found = new List<Candidate>();
+        var cutoff = DateTime.UtcNow.AddDays(-7);
         if (!Directory.Exists(root) || (File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0) return found;
         var stack = new Stack<string>();
         stack.Push(root);
-        while (stack.Count > 0 && found.Count < 500)
+        while (stack.Count > 0)
         {
             token.ThrowIfCancellationRequested();
             var directory = stack.Pop();
@@ -41,14 +41,13 @@ public static class UserTempCleanup
                 foreach (var path in Directory.EnumerateFileSystemEntries(directory))
                 {
                     token.ThrowIfCancellationRequested();
-                    if (found.Count >= 500) break;
                     try
                     {
                         var attributes = File.GetAttributes(path);
                         if ((attributes & FileAttributes.ReparsePoint) != 0 || !Allowed(path, root)) continue;
                         if ((attributes & FileAttributes.Directory) != 0) { stack.Push(path); continue; }
                         var info = new FileInfo(path);
-                        if (info.LastWriteTimeUtc <= DateTime.UtcNow.AddDays(-7))
+                        if (info.LastWriteTimeUtc <= cutoff)
                             found.Add(new Candidate(info.FullName, info.Length, info.LastWriteTimeUtc));
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }

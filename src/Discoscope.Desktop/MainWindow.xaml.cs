@@ -93,7 +93,7 @@ public partial class MainWindow : Window
                 new CleanupCategoryRow("Temporaires utilisateur", user.Count, FormatCleanupBytes(Total(user)), Discoscope.Desktop.Services.UserTempCleanup.Location.User),
                 new CleanupCategoryRow("Temporaires Windows", windows.Count, FormatCleanupBytes(Total(windows)), Discoscope.Desktop.Services.UserTempCleanup.Location.Windows)
             };
-            CleanupOverviewStatus.Text = "Sélectionnez une catégorie ci-dessous pour consulter ses fichiers (500 max. par catégorie).";
+            CleanupOverviewStatus.Text = "Sélectionnez une catégorie ci-dessous pour consulter ses fichiers.";
         }
         catch (OperationCanceledException)
         {
@@ -136,7 +136,7 @@ public partial class MainWindow : Window
             long total = 0;
             foreach (var candidate in candidates)
                 total = total > long.MaxValue - candidate.Bytes ? long.MaxValue : total + candidate.Bytes;
-            CleanupStatus.Text = $"{candidates.Count:N0} fichiers · {FormatCleanupBytes(total)} (taille logique, maximum 500).";
+            CleanupStatus.Text = $"{candidates.Count:N0} fichiers · {FormatCleanupBytes(total)} (taille logique).";
         }
         catch (OperationCanceledException)
         {

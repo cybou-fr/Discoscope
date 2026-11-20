@@ -229,7 +229,7 @@
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                         <TextBlock Text="Nettoyage des fichiers temporaires" FontSize="17" FontWeight="SemiBold"/>
                         <TextBlock Grid.Row="1" Margin="0,8,0,12" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
-                                   Text="Choisissez un emplacement. Seuls les fichiers non modifiés depuis 7 jours sont proposés (500 maximum par aperçu). Déplacement vers la Corbeille après confirmation : l’espace libre n’augmente pas forcément immédiatement."/>
+                                   Text="Choisissez un emplacement. Seuls les fichiers non modifiés depuis 7 jours sont proposés. Déplacement vers la Corbeille après confirmation : l’espace libre n’augmente pas forcément immédiatement."/>
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
                             <ComboBox x:Name="CleanupLocation" Width="185" SelectedIndex="0" SelectionChanged="CleanupLocationChanged" VerticalAlignment="Center" Margin="0,0,10,0">
                                 <ComboBoxItem Content="Temporaires utilisateur"/>
@@ -258,7 +258,7 @@
                             </DataGrid>
                         </StackPanel>
                         <DataGrid x:Name="CleanupFiles" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True"
-                                  SelectionMode="Extended" SelectionChanged="CleanupSelectionChanged" CanUserAddRows="False" EnableRowVirtualization="True"
+                                  SelectionMode="Extended" SelectionChanged="CleanupSelectionChanged" CanUserAddRows="False" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                   Background="#1A2230" Foreground="White" RowBackground="#1A2230"
                                   AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
                             <DataGrid.Columns>
