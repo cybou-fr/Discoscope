@@ -42,6 +42,10 @@ Le diagnostic des dossiers temporaires utilisateur et Windows est en lecture seu
 
 Le bouton **Analyser Windows** lance uniquement `DISM /Online /Cleanup-Image /AnalyzeComponentStore /English`. Le rapport brut est affiché, sans interprétation trompeuse des tailles. Aucun nettoyage ni opération de réparation n’est exécuté. DISM peut nécessiter une élévation des privilèges ; une annulation interrompt le processus lancé.
 
+### Clichés instantanés VSS
+
+L’onglet **Clichés instantanés · VSS** exécute uniquement `vssadmin list shadowstorage`. La sortie brute permet d’inspecter les associations de stockage des clichés. La commande peut nécessiter des droits administrateur ; une erreur de permissions reste visible. **Aucune suppression, aucun redimensionnement et aucune estimation de gain récupérable** ne sont effectués.
+
 ## Architecture
 
 - `Discoscope.Core` : modèles et scanner de dossiers, indépendants de WPF.

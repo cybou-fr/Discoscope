@@ -42,6 +42,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _issuesLabel = "—";
     private string _volumeLabel = "—";
     private string _freeLabel = "—";
+    private string _vssStatus = "Non analysé";
+    private string _vssReport = "L’analyse VSS est disponible séparément.";
     private string _componentStatus = "Non analysé";
     private string _componentReport = "L’analyse DISM est disponible après le parcours du disque.";
 
@@ -56,6 +58,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SizeLabel { get => _sizeLabel; private set { _sizeLabel = value; Changed(); } }
     public string VolumeLabel { get => _volumeLabel; private set { _volumeLabel = value; Changed(); } }
     public string FreeLabel { get => _freeLabel; private set { _freeLabel = value; Changed(); } }
+    public string VssStatus { get => _vssStatus; private set { _vssStatus = value; Changed(); } }
+    public string VssReport { get => _vssReport; private set { _vssReport = value; Changed(); } }
     public string ComponentStatus { get => _componentStatus; private set { _componentStatus = value; Changed(); } }
     public string ComponentReport { get => _componentReport; private set { _componentReport = value; Changed(); } }
     public string IssuesLabel { get => _issuesLabel; private set { _issuesLabel = value; Changed(); } }
@@ -63,6 +67,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public RelayCommand ScanCommand { get; }
     public RelayCommand CancelCommand { get; }
     public RelayCommand AnalyzeWindowsCommand { get; }
+    public RelayCommand AnalyzeVssCommand { get; }
 
     public MainViewModel(IDiskScanner scanner)
     {
@@ -71,15 +76,56 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ScanCommand = new RelayCommand(() => _ = ScanAsync(), () => !_isScanning && SelectedDrive is not null);
         CancelCommand = new RelayCommand(() => _scanCancellation?.Cancel(), () => _isScanning);
         AnalyzeWindowsCommand = new RelayCommand(() => _ = AnalyzeWindowsAsync(), () => !_isScanning);
+        AnalyzeVssCommand = new RelayCommand(() => _ = AnalyzeVssAsync(), () => !_isScanning);
+    }
+
+    private async Task AnalyzeVssAsync()
+    {
+        if (_isScanning) return;
+        _isScanning = true;
+        RefreshCommands();
+        _scanCancellation = new CancellationTokenSource();
+        VssStatus = "Analyse VSS en cours…";
+        VssReport = "";
+        try
+        {
+            var result = await new ShadowStorageInspector().InspectAsync(_scanCancellation.Token);
+            VssStatus = result.Status;
+            VssReport = result.RawOutput is { Length: > 0 }
+                ? result.RawOutput + Environment.NewLine + result.Details
+                : result.Details;
+        }
+        catch (OperationCanceledException)
+        {
+            VssStatus = "Analyse annulée";
+        }
+        catch (Exception ex)
+        {
+            VssStatus = "Erreur";
+            VssReport = ex.Message;
+        }
+        finally
+        {
+            _scanCancellation.Dispose();
+            _scanCancellation = null;
+            _isScanning = false;
+            RefreshCommands();
+        }
+    }
+
+    private void RefreshCommands()
+    {
+        ScanCommand.RaiseCanExecuteChanged();
+        AnalyzeWindowsCommand.RaiseCanExecuteChanged();
+        AnalyzeVssCommand.RaiseCanExecuteChanged();
+        CancelCommand.RaiseCanExecuteChanged();
     }
 
     private async Task AnalyzeWindowsAsync()
     {
         if (_isScanning) return;
         _isScanning = true;
-        ScanCommand.RaiseCanExecuteChanged();
-        AnalyzeWindowsCommand.RaiseCanExecuteChanged();
-        CancelCommand.RaiseCanExecuteChanged();
+        RefreshCommands();
         _scanCancellation = new CancellationTokenSource();
         ComponentStatus = "Analyse DISM en cours…";
         ComponentReport = "";
@@ -103,9 +149,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _scanCancellation.Dispose();
             _scanCancellation = null;
             _isScanning = false;
-            ScanCommand.RaiseCanExecuteChanged();
-            AnalyzeWindowsCommand.RaiseCanExecuteChanged();
-            CancelCommand.RaiseCanExecuteChanged();
+            RefreshCommands();
         }
     }
 
@@ -113,9 +157,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (_isScanning || SelectedDrive is null) return;
         _isScanning = true;
-        ScanCommand.RaiseCanExecuteChanged();
-        AnalyzeWindowsCommand.RaiseCanExecuteChanged();
-        CancelCommand.RaiseCanExecuteChanged();
+        RefreshCommands();
         _scanCancellation = new CancellationTokenSource();
         Entries.Clear();
         TemporaryEntries.Clear();
@@ -163,9 +205,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _scanCancellation.Dispose();
             _scanCancellation = null;
             _isScanning = false;
-            ScanCommand.RaiseCanExecuteChanged();
-            AnalyzeWindowsCommand.RaiseCanExecuteChanged();
-            CancelCommand.RaiseCanExecuteChanged();
+            RefreshCommands();
         }
     }
 
