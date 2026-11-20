@@ -7,7 +7,7 @@ public static class UserTempCleanup
     public sealed record Result(int Recycled, int Skipped, long LogicalBytes);
     public sealed record RecycleProgress(int Processed, int Total, int Recycled, int Skipped, long LogicalBytes);
     public sealed record RecycleReport(Result Result, bool Cancelled, IReadOnlyList<string> Errors);
-    public sealed record Progress(long Visited, int Eligible, long LogicalBytes);
+    public sealed record Progress(long Visited, long Eligible, long LogicalBytes);
     public enum Location { User, Windows }
     public const int PreviewLimit = 1000;
     public static string GetRoot(Location location) =>
@@ -207,13 +207,17 @@ public static class UserTempCleanup
         foreach (var page in inventory.Pages())
         {
             if (token.IsCancellationRequested) { cancelled = true; break; }
+            var completedBeforePage = processed;
+            var recycledBeforePage = recycled;
+            var skippedBeforePage = skipped;
+            var bytesBeforePage = bytes;
             var pageProgress = progress is null ? null : new Progress<RecycleProgress>(p =>
                 progress.Report(new RecycleProgress(
-                    (int)Math.Min(int.MaxValue, processed + p.Processed),
+                    (int)Math.Min(int.MaxValue, completedBeforePage + p.Processed),
                     (int)Math.Min(int.MaxValue, inventory.Count),
-                    (int)Math.Min(int.MaxValue, recycled + p.Recycled),
-                    (int)Math.Min(int.MaxValue, skipped + p.Skipped),
-                    bytes > long.MaxValue - p.LogicalBytes ? long.MaxValue : bytes + p.LogicalBytes)));
+                    (int)Math.Min(int.MaxValue, recycledBeforePage + p.Recycled),
+                    (int)Math.Min(int.MaxValue, skippedBeforePage + p.Skipped),
+                    bytesBeforePage > long.MaxValue - p.LogicalBytes ? long.MaxValue : bytesBeforePage + p.LogicalBytes)));
             var report = RecycleWithReport(page, location, token, pageProgress);
             recycled += report.Result.Recycled;
             skipped += report.Result.Skipped;
@@ -226,6 +230,7 @@ public static class UserTempCleanup
                 (int)Math.Min(int.MaxValue, recycled), (int)Math.Min(int.MaxValue, skipped), bytes));
             if (report.Cancelled) { cancelled = true; break; }
         }
+        if (token.IsCancellationRequested) cancelled = true;
         return new RecycleReport(
             new Result((int)Math.Min(int.MaxValue, recycled), (int)Math.Min(int.MaxValue, skipped), bytes),
             cancelled, errors);

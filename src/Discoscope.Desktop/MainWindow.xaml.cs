@@ -14,11 +14,17 @@ namespace Discoscope.Desktop;
 public partial class MainWindow : Window
 {
     private bool _cleanupBusy;
-    protected override void OnClosed(EventArgs e)
+    protected override void OnClosing(CancelEventArgs e)
     {
-        _cleanupCancellation?.Cancel();
-        _cleanupInventory?.Dispose();
-        base.OnClosed(e);
+        if (_cleanupBusy)
+        {
+            _cleanupCancellation?.Cancel();
+            e.Cancel = true;
+            CleanupStatus.Text = "Annulation en cours. Fermez la fenêtre une fois l’opération terminée.";
+            return;
+        }
+        ReleaseCleanupInventory();
+        base.OnClosing(e);
     }
     private Discoscope.Desktop.Services.UserTempCleanup.Inventory? _cleanupInventory;
     private int _cleanupPage;
@@ -52,7 +58,7 @@ public partial class MainWindow : Window
     private void PreviousCleanupPage(object sender, RoutedEventArgs e) { if (!_cleanupBusy) ShowCleanupPage(_cleanupPage - 1); }
     private void NextCleanupPage(object sender, RoutedEventArgs e) { if (!_cleanupBusy) ShowCleanupPage(_cleanupPage + 1); }
 
-    private sealed record CleanupCategoryRow(string Name, int Count, string Size, Discoscope.Desktop.Services.UserTempCleanup.Location Location);
+    private sealed record CleanupCategoryRow(string Name, long Count, string Size, Discoscope.Desktop.Services.UserTempCleanup.Location Location);
 
     private void CleanupCategorySelected(object sender, SelectionChangedEventArgs e)
     {
@@ -192,7 +198,7 @@ public partial class MainWindow : Window
         if (_cleanupBusy || _cleanupInventory is not { Count: > 0 } inventory) return;
         var location = SelectedCleanupLocation;
         if (MessageBox.Show(this,
-            $"Déplacer TOUS les {inventory.Count:N0} fichiers indexés ({FormatCleanupBytes(inventory.LogicalBytes)} logiques) vers la Corbeille ?\\n\\nLes fichiers sont revérifiés individuellement. Cette opération peut être longue et l’espace libre n’augmentera pas avant de vider la Corbeille.",
+            $"Déplacer TOUS les {inventory.Count:N0} fichiers indexés ({FormatCleanupBytes(inventory.LogicalBytes)} logiques) vers la Corbeille ?\n\nLes fichiers sont revérifiés individuellement. Cette opération peut être longue et l’espace libre n’augmentera pas avant de vider la Corbeille.",
             "Confirmer le nettoyage complet", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         _cleanupBusy = true;
         _cleanupCancellation = new CancellationTokenSource();
