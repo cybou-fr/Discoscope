@@ -48,7 +48,7 @@ L’onglet **Clichés instantanés · VSS** exécute uniquement `vssadmin list s
 
 ### Carte des dossiers
 
-Une carte proportionnelle en lecture seule présente jusqu’à 24 dossiers immédiatement sous la racine analysée. Les surfaces représentent leurs tailles logiques relatives, sans additionner des dossiers parents et enfants. Cette carte ne représente pas l’espace NTFS réellement alloué ni les fichiers directement situés à la racine.
+Une carte proportionnelle présente jusqu’à 24 sous-dossiers par niveau. Cliquez sur un rectangle pour descendre dans le dossier et utilisez « Retour » pour remonter. La navigation utilise les résultats en mémoire sans relancer le scan. Les surfaces représentent leurs tailles logiques relatives, sans additionner des dossiers parents et enfants. Cette carte ne représente pas l’espace NTFS réellement alloué ni les fichiers directement situés à la racine.
 
 ## Architecture
 

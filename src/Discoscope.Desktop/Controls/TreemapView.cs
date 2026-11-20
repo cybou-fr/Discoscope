@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Input;
 using Discoscope.Desktop.ViewModels;
 
 namespace Discoscope.Desktop.Controls;
@@ -18,9 +19,30 @@ public sealed class TreemapView : FrameworkElement
         set => SetValue(ItemsProperty, value);
     }
 
+    public static readonly DependencyProperty NavigateCommandProperty =
+        DependencyProperty.Register(nameof(NavigateCommand), typeof(ICommand), typeof(TreemapView));
+
+    public ICommand? NavigateCommand
+    {
+        get => (ICommand?)GetValue(NavigateCommandProperty);
+        set => SetValue(NavigateCommandProperty, value);
+    }
+
+    private readonly List<(Rect Bounds, DirectoryRow Entry)> _hitAreas = [];
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+        var point = e.GetPosition(this);
+        var selected = _hitAreas.FirstOrDefault(x => x.Bounds.Contains(point)).Entry;
+        if (selected is not null && NavigateCommand?.CanExecute(selected.Path) == true)
+            NavigateCommand.Execute(selected.Path);
+    }
+
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
+        _hitAreas.Clear();
         var width = ActualWidth;
         var height = ActualHeight;
         if (width <= 0 || height <= 0) return;
@@ -44,6 +66,7 @@ public sealed class TreemapView : FrameworkElement
             // Recompute relative shares for the remaining unallocated area.
             total -= item.Bytes;
             if (rect.Width < 2 || rect.Height < 2) continue;
+            _hitAreas.Add((rect, item));
             var color = Color.FromRgb((byte)(33 + i * 5 % 35), (byte)(105 + i * 11 % 65), (byte)(150 + i * 7 % 85));
             var fill = new SolidColorBrush(color);
             dc.DrawRoundedRectangle(fill, new Pen(new SolidColorBrush(Color.FromRgb(18, 26, 38)), 2),

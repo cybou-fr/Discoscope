@@ -42,6 +42,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _issuesLabel = "—";
     private string _volumeLabel = "—";
     private string _freeLabel = "—";
+    private string _mapPath = "Aucune analyse";
+    private Dictionary<string, DirectoryRow[]> _mapIndex = new(StringComparer.OrdinalIgnoreCase);
+    private string _mapRoot = "";
     private string _vssStatus = "Non analysé";
     private string _vssReport = "L’analyse VSS est disponible séparément.";
     private string _componentStatus = "Non analysé";
@@ -53,6 +56,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<DirectoryRow> Entries { get; } = [];
     public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
     public ObservableCollection<DirectoryRow> MapEntries { get; } = [];
+    public string MapPath { get => _mapPath; private set { _mapPath = value; Changed(); } }
+    public RelayCommand NavigateBackCommand { get; }
+    public ParameterCommand NavigateMapCommand { get; }
     public string? SelectedDrive { get => _selectedDrive; set { _selectedDrive = value; Changed(); ScanCommand.RaiseCanExecuteChanged(); } }
     public string Status { get => _status; private set { _status = value; Changed(); } }
     public string FilesLabel { get => _filesLabel; private set { _filesLabel = value; Changed(); } }
@@ -78,6 +84,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CancelCommand = new RelayCommand(() => _scanCancellation?.Cancel(), () => _isScanning);
         AnalyzeWindowsCommand = new RelayCommand(() => _ = AnalyzeWindowsAsync(), () => !_isScanning);
         AnalyzeVssCommand = new RelayCommand(() => _ = AnalyzeVssAsync(), () => !_isScanning);
+        NavigateBackCommand = new RelayCommand(NavigateBack, () => !_isScanning && !string.Equals(_mapPath, _mapRoot, StringComparison.OrdinalIgnoreCase) && _mapIndex.ContainsKey(_mapPath));
+        NavigateMapCommand = new ParameterCommand(p => { if (p is string path) ShowMap(path); }, p => !_isScanning && p is string path && _mapIndex.ContainsKey(path));
+    }
+
+    private void ShowMap(string path)
+    {
+        if (!_mapIndex.TryGetValue(path, out var children)) return;
+        MapPath = path;
+        MapEntries.Clear();
+        foreach (var child in children.OrderByDescending(x => x.Bytes).Take(24))
+            MapEntries.Add(child);
+        NavigateBackCommand.RaiseCanExecuteChanged();
+        NavigateMapCommand.RaiseCanExecuteChanged();
+    }
+
+    private void NavigateBack()
+    {
+        var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(MapPath));
+        if (parent is not null && _mapIndex.ContainsKey(parent)) ShowMap(parent);
     }
 
     private async Task AnalyzeVssAsync()
@@ -120,6 +145,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         AnalyzeWindowsCommand.RaiseCanExecuteChanged();
         AnalyzeVssCommand.RaiseCanExecuteChanged();
         CancelCommand.RaiseCanExecuteChanged();
+        NavigateBackCommand.RaiseCanExecuteChanged();
+        NavigateMapCommand.RaiseCanExecuteChanged();
     }
 
     private async Task AnalyzeWindowsAsync()
@@ -163,6 +190,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Entries.Clear();
         TemporaryEntries.Clear();
         MapEntries.Clear();
+        _mapIndex.Clear();
+        MapPath = "Analyse en cours…";
         try
         {
             var volume = new VolumeInspector().Inspect(SelectedDrive);
@@ -190,11 +219,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IssuesLabel = result.Issues.Count.ToString("N0");
             foreach (var temp in await new TemporaryFilesInspector().InspectAsync(_scanCancellation.Token))
                 TemporaryEntries.Add(new TemporaryRow(temp.Name, temp.Path, SizeFormatter.Format(temp.LogicalBytes), temp.FileCount, temp.SkippedCount));
-            var rootPath = Path.TrimEndingDirectorySeparator(result.Root);
-            foreach (var entry in result.Entries.Where(e => string.Equals(
-                Path.TrimEndingDirectorySeparator(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(e.Path)) ?? ""),
-                rootPath, StringComparison.OrdinalIgnoreCase)).OrderByDescending(e => e.Bytes).Take(24))
-                MapEntries.Add(new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount));
+            _mapRoot = Path.TrimEndingDirectorySeparator(result.Root);
+            _mapIndex = result.Entries
+                .Select(e => new DirectoryRow(e.Path, e.Bytes, e.FileCount))
+                .GroupBy(e => Path.TrimEndingDirectorySeparator(
+                    Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(e.Path)) ?? ""), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
+            ShowMap(_mapRoot);
             foreach (var entry in result.Entries.Take(300))
                 Entries.Add(new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount));
             Status = $"Analyse terminée à {result.CompletedAt:HH:mm} · {result.DirectoryCount:N0} dossiers · {result.Issues.Count:N0} avertissements.";
@@ -226,5 +257,13 @@ public sealed class RelayCommand(Action action, Func<bool> canExecute) : IComman
     public event EventHandler? CanExecuteChanged;
     public bool CanExecute(object? parameter) => canExecute();
     public void Execute(object? parameter) => action();
+    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+}
+
+public sealed class ParameterCommand(Action<object?> action, Predicate<object?> canExecute) : ICommand
+{
+    public event EventHandler? CanExecuteChanged;
+    public bool CanExecute(object? parameter) => canExecute(parameter);
+    public void Execute(object? parameter) => action(parameter);
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }

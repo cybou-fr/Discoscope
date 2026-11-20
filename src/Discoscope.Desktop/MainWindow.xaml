@@ -106,8 +106,11 @@
                         <DataGridTextColumn Header="Fichiers" Binding="{Binding FileCount}" Width="110"/>
                     </DataGrid.Columns>
                 </DataGrid>
-                <TextBlock Grid.Row="3" Text="Carte des dossiers principaux (taille logique)" FontWeight="SemiBold" Margin="0,10,0,8"/>
-                <controls:TreemapView Grid.Row="4" Items="{Binding MapEntries}"/>
+                <DockPanel Grid.Row="3" Margin="0,10,0,8">
+                    <Button Content="Retour" Command="{Binding NavigateBackCommand}" DockPanel.Dock="Right" Padding="10,3"/>
+                    <TextBlock Text="{Binding MapPath}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="{Binding MapPath}"/>
+                </DockPanel>
+                <controls:TreemapView Grid.Row="4" Items="{Binding MapEntries}" NavigateCommand="{Binding NavigateMapCommand}" Cursor="Hand" ToolTip="Cliquez sur un dossier pour explorer son contenu"/>
                 <TextBlock Grid.Row="5" Text="Fichiers temporaires — diagnostic uniquement" FontWeight="SemiBold" Margin="0,10,0,8"/>
                 <DataGrid Grid.Row="6" ItemsSource="{Binding TemporaryEntries}" AutoGenerateColumns="False" IsReadOnly="True" Background="#1A2230" Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
                     <DataGrid.Columns>
