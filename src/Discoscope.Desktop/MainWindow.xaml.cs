@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     {
         CleanupPreviewButton.IsEnabled = !_cleanupBusy;
         CleanupRecycleButton.IsEnabled = !_cleanupBusy && CleanupFiles.SelectedItems.Count > 0;
+        CleanupSelectAllButton.IsEnabled = !_cleanupBusy && CleanupFiles.Items.Count > 0;
         if (_cleanupBusy) return;
         var count = CleanupFiles.SelectedItems.Count;
         if (count > 0)
@@ -31,6 +32,12 @@ public partial class MainWindow : Window
                     bytes = bytes > long.MaxValue - candidate.Bytes ? long.MaxValue : bytes + candidate.Bytes;
             CleanupStatus.Text = $"{count:N0} sélectionnés · {bytes:N0} octets logiques.";
         }
+    }
+
+    private void SelectAllCleanupFiles(object sender, RoutedEventArgs e)
+    {
+        if (!_cleanupBusy && CleanupFiles.Items.Count > 0)
+            CleanupFiles.SelectAll();
     }
 
     private async void PreviewUserTempCleanup(object sender, RoutedEventArgs e)
@@ -44,7 +51,10 @@ public partial class MainWindow : Window
         {
             var candidates = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview());
             CleanupFiles.ItemsSource = candidates;
-            CleanupStatus.Text = $"{candidates.Count:N0} fichiers trouvés (maximum 500).";
+            long total = 0;
+            foreach (var candidate in candidates)
+                total = total > long.MaxValue - candidate.Bytes ? long.MaxValue : total + candidate.Bytes;
+            CleanupStatus.Text = $"{candidates.Count:N0} fichiers · {total:N0} octets logiques (maximum 500).";
         }
         catch (Exception ex)
         {
@@ -59,7 +69,9 @@ public partial class MainWindow : Window
         if (_cleanupBusy) return;
         var selected = CleanupFiles.SelectedItems.Cast<Discoscope.Desktop.Services.UserTempCleanup.Candidate>().ToArray();
         if (selected.Length == 0) return;
-        var total = selected.Sum(file => file.Bytes);
+        long total = 0;
+        foreach (var file in selected)
+            total = total > long.MaxValue - file.Bytes ? long.MaxValue : total + file.Bytes;
         if (MessageBox.Show(this,
             $"Déplacer {selected.Length:N0} fichiers ({total:N0} octets logiques) vers la Corbeille ?",
             "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
@@ -69,15 +81,16 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected));
-            CleanupFiles.ItemsSource = null;
-            CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés · {result.Skipped:N0} ignorés. Relancez l’analyse.";
+            var remaining = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview());
+            CleanupFiles.ItemsSource = remaining;
+            CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({result.LogicalBytes:N0} octets logiques) · {result.Skipped:N0} ignorés. Résultats du disque à actualiser.";
         }
         catch (Exception ex)
         {
             CleanupStatus.Text = "Nettoyage interrompu.";
             MessageBox.Show(this, ex.Message, "Discoscope");
         }
-        finally { _cleanupBusy = false; }
+        finally { _cleanupBusy = false; UpdateCleanupSelection(); }
     }
 
     private MainViewModel Model => (MainViewModel)DataContext;

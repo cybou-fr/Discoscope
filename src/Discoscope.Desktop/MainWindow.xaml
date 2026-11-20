@@ -232,6 +232,7 @@
                                    Text="Fichiers du dossier temporaire utilisateur non modifiés depuis 7 jours. Aperçu limité à 500 fichiers. Déplacement vers la Corbeille uniquement après confirmation."/>
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
                             <Button x:Name="CleanupPreviewButton" Content="Rechercher" Click="PreviewUserTempCleanup" Padding="12,6"/>
+                            <Button x:Name="CleanupSelectAllButton" Content="Tout sélectionner" Click="SelectAllCleanupFiles" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <Button x:Name="CleanupRecycleButton" Content="Déplacer la sélection vers la Corbeille" Click="RecycleUserTempCleanup" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <TextBlock x:Name="CleanupStatus" Text="Aucun aperçu" Margin="14,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
