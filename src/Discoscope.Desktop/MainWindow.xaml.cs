@@ -53,7 +53,7 @@ public partial class MainWindow : Window
             foreach (var item in CleanupFiles.SelectedItems)
                 if (item is Discoscope.Desktop.Services.UserTempCleanup.Candidate candidate)
                     bytes = bytes > long.MaxValue - candidate.Bytes ? long.MaxValue : bytes + candidate.Bytes;
-            CleanupStatus.Text = $"{count:N0} sélectionnés · {bytes:N0} octets logiques.";
+            CleanupStatus.Text = $"{count:N0} sélectionnés · {FormatCleanupBytes(bytes)} (taille logique).";
         }
     }
 
@@ -80,7 +80,7 @@ public partial class MainWindow : Window
             long total = 0;
             foreach (var candidate in candidates)
                 total = total > long.MaxValue - candidate.Bytes ? long.MaxValue : total + candidate.Bytes;
-            CleanupStatus.Text = $"{candidates.Count:N0} fichiers · {total:N0} octets logiques (maximum 500).";
+            CleanupStatus.Text = $"{candidates.Count:N0} fichiers · {FormatCleanupBytes(total)} (taille logique, maximum 500).";
         }
         catch (OperationCanceledException)
         {
@@ -103,7 +103,7 @@ public partial class MainWindow : Window
         foreach (var file in selected)
             total = total > long.MaxValue - file.Bytes ? long.MaxValue : total + file.Bytes;
         if (MessageBox.Show(this,
-            $"Déplacer {selected.Length:N0} fichiers ({total:N0} octets logiques) vers la Corbeille ?",
+            $"Déplacer {selected.Length:N0} fichiers ({FormatCleanupBytes(total)} logiques) vers la Corbeille ?\n\nL’espace libre ne sera pas nécessairement augmenté avant de vider la Corbeille.",
             "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         var location = SelectedCleanupLocation;
         _cleanupBusy = true;
@@ -116,7 +116,7 @@ public partial class MainWindow : Window
             var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected, location, token));
             var remaining = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(location, token));
             CleanupFiles.ItemsSource = remaining;
-            CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({result.LogicalBytes:N0} octets logiques) · {result.Skipped:N0} ignorés. Résultats du disque à actualiser.";
+            CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({FormatCleanupBytes(result.LogicalBytes)} logiques) · {result.Skipped:N0} ignorés. Résultats du disque à actualiser.";
         }
         catch (OperationCanceledException)
         {
@@ -128,7 +128,17 @@ public partial class MainWindow : Window
             CleanupStatus.Text = "Nettoyage interrompu.";
             MessageBox.Show(this, ex.Message, "Discoscope");
         }
-        finally { _cleanupBusy = false; UpdateCleanupSelection(); }
+        finally { _cleanupCancellation?.Dispose(); _cleanupCancellation = null; _cleanupBusy = false; UpdateCleanupSelection(); }
+    }
+
+    private static string FormatCleanupBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes:N0} o";
+        string[] units = ["Ko", "Mo", "Go", "To", "Po"];
+        double value = bytes;
+        int unit = -1;
+        do { value /= 1024; unit++; } while (value >= 1024 && unit < units.Length - 1);
+        return $"{value:N2} {units[unit]}";
     }
 
     private MainViewModel Model => (MainViewModel)DataContext;

@@ -227,9 +227,9 @@
                 <TabItem Header="Nettoyage">
                     <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <TextBlock Text="Nettoyage des temporaires utilisateur" FontSize="17" FontWeight="SemiBold"/>
+                        <TextBlock Text="Nettoyage des fichiers temporaires" FontSize="17" FontWeight="SemiBold"/>
                         <TextBlock Grid.Row="1" Margin="0,8,0,12" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
-                                   Text="Fichiers du dossier temporaire utilisateur non modifiés depuis 7 jours. Aperçu limité à 500 fichiers. Déplacement vers la Corbeille uniquement après confirmation."/>
+                                   Text="Choisissez un emplacement. Seuls les fichiers non modifiés depuis 7 jours sont proposés (500 maximum par aperçu). Déplacement vers la Corbeille après confirmation : l’espace libre n’augmente pas forcément immédiatement."/>
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
                             <ComboBox x:Name="CleanupLocation" Width="185" SelectedIndex="0" SelectionChanged="CleanupLocationChanged" VerticalAlignment="Center" Margin="0,0,10,0">
                                 <ComboBoxItem Content="Temporaires utilisateur"/>
