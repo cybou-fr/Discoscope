@@ -5,10 +5,14 @@ public static class UserTempCleanup
 {
     public sealed record Candidate(string Path, long Bytes, DateTime ModifiedUtc);
     public sealed record Result(int Recycled, int Skipped, long LogicalBytes);
-    private static string Root => Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath()));
-    private static bool Allowed(string path)
+    public enum Location { User, Windows }
+    public static string GetRoot(Location location) =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(location == Location.User
+            ? Path.GetTempPath()
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp")));
+    private static string Root => GetRoot(Location.User);
+    private static bool Allowed(string path, string root)
     {
-        var root = Root;
         if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0) return false;
         path = Path.GetFullPath(path);
         if (!path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) return false;
@@ -21,12 +25,13 @@ public static class UserTempCleanup
         }
         return false;
     }
-    public static IReadOnlyList<Candidate> Preview()
+    public static IReadOnlyList<Candidate> Preview(Location location = Location.User)
     {
+        var root = GetRoot(location);
         var found = new List<Candidate>();
-        if (!Directory.Exists(Root) || (File.GetAttributes(Root) & FileAttributes.ReparsePoint) != 0) return found;
+        if (!Directory.Exists(root) || (File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0) return found;
         var stack = new Stack<string>();
-        stack.Push(Root);
+        stack.Push(root);
         while (stack.Count > 0 && found.Count < 500)
         {
             var directory = stack.Pop();
@@ -38,7 +43,7 @@ public static class UserTempCleanup
                     try
                     {
                         var attributes = File.GetAttributes(path);
-                        if ((attributes & FileAttributes.ReparsePoint) != 0 || !Allowed(path)) continue;
+                        if ((attributes & FileAttributes.ReparsePoint) != 0 || !Allowed(path, root)) continue;
                         if ((attributes & FileAttributes.Directory) != 0) { stack.Push(path); continue; }
                         var info = new FileInfo(path);
                         if (info.LastWriteTimeUtc <= DateTime.UtcNow.AddDays(-7))
@@ -51,8 +56,9 @@ public static class UserTempCleanup
         }
         return found;
     }
-    public static Result Recycle(IReadOnlyList<Candidate> candidates, CancellationToken token = default)
+    public static Result Recycle(IReadOnlyList<Candidate> candidates, Location location = Location.User, CancellationToken token = default)
     {
+        var root = GetRoot(location);
         int recycled = 0, skipped = 0;
         long bytes = 0;
         foreach (var item in candidates)
@@ -60,7 +66,7 @@ public static class UserTempCleanup
             token.ThrowIfCancellationRequested();
             try
             {
-                if (!Allowed(item.Path)) { skipped++; continue; }
+                if (!Allowed(item.Path, root)) { skipped++; continue; }
                 var info = new FileInfo(item.Path);
                 if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0 ||
                     info.Length != item.Bytes || info.LastWriteTimeUtc != item.ModifiedUtc ||

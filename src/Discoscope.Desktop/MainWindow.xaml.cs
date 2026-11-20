@@ -14,12 +14,27 @@ namespace Discoscope.Desktop;
 public partial class MainWindow : Window
 {
     private bool _cleanupBusy;
+    private Discoscope.Desktop.Services.UserTempCleanup.Location SelectedCleanupLocation =>
+        CleanupLocation.SelectedIndex == 1
+            ? Discoscope.Desktop.Services.UserTempCleanup.Location.Windows
+            : Discoscope.Desktop.Services.UserTempCleanup.Location.User;
+
+    private void CleanupLocationChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CleanupFiles is null || CleanupStatus is null) return;
+        CleanupFiles.ItemsSource = null;
+        CleanupStatus.Text = "Recherchez les fichiers de cet emplacement.";
+        if (CleanupPreviewButton is not null && CleanupRecycleButton is not null && CleanupSelectAllButton is not null)
+            UpdateCleanupSelection();
+    }
+
 
     private void CleanupSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateCleanupSelection();
 
     private void UpdateCleanupSelection()
     {
         CleanupPreviewButton.IsEnabled = !_cleanupBusy;
+        CleanupLocation.IsEnabled = !_cleanupBusy;
         CleanupRecycleButton.IsEnabled = !_cleanupBusy && CleanupFiles.SelectedItems.Count > 0;
         CleanupSelectAllButton.IsEnabled = !_cleanupBusy && CleanupFiles.Items.Count > 0;
         if (_cleanupBusy) return;
@@ -49,7 +64,8 @@ public partial class MainWindow : Window
         CleanupStatus.Text = "Recherche en cours…";
         try
         {
-            var candidates = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview());
+            var location = SelectedCleanupLocation;
+            var candidates = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(location));
             CleanupFiles.ItemsSource = candidates;
             long total = 0;
             foreach (var candidate in candidates)
@@ -75,13 +91,14 @@ public partial class MainWindow : Window
         if (MessageBox.Show(this,
             $"Déplacer {selected.Length:N0} fichiers ({total:N0} octets logiques) vers la Corbeille ?",
             "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        var location = SelectedCleanupLocation;
         _cleanupBusy = true;
         UpdateCleanupSelection();
         CleanupStatus.Text = "Déplacement vers la Corbeille…";
         try
         {
-            var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected));
-            var remaining = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview());
+            var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected, location));
+            var remaining = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(location));
             CleanupFiles.ItemsSource = remaining;
             CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({result.LogicalBytes:N0} octets logiques) · {result.Skipped:N0} ignorés. Résultats du disque à actualiser.";
         }
