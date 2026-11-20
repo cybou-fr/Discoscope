@@ -38,6 +38,10 @@ Modifications exclusivement sur `main`. Pas de CI/CD ni de GitHub Actions. Compi
 
 Le diagnostic des dossiers temporaires utilisateur et Windows est en lecture seule. La taille détectée ne correspond pas à une quantité supprimable garantie.
 
+### Diagnostic Windows
+
+Le bouton **Analyser Windows** lance uniquement `DISM /Online /Cleanup-Image /AnalyzeComponentStore /English`. Le rapport brut est affiché, sans interprétation trompeuse des tailles. Aucun nettoyage ni opération de réparation n’est exécuté. DISM peut nécessiter une élévation des privilèges ; une annulation interrompt le processus lancé.
+
 ## Architecture
 
 - `Discoscope.Core` : modèles et scanner de dossiers, indépendants de WPF.

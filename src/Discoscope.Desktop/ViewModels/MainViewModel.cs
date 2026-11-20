@@ -42,6 +42,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _issuesLabel = "—";
     private string _volumeLabel = "—";
     private string _freeLabel = "—";
+    private string _componentStatus = "Non analysé";
+    private string _componentReport = "L’analyse DISM est disponible après le parcours du disque.";
 
     public ObservableCollection<string> Drives { get; } = new(
         DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.RootDirectory.FullName));
@@ -54,10 +56,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SizeLabel { get => _sizeLabel; private set { _sizeLabel = value; Changed(); } }
     public string VolumeLabel { get => _volumeLabel; private set { _volumeLabel = value; Changed(); } }
     public string FreeLabel { get => _freeLabel; private set { _freeLabel = value; Changed(); } }
+    public string ComponentStatus { get => _componentStatus; private set { _componentStatus = value; Changed(); } }
+    public string ComponentReport { get => _componentReport; private set { _componentReport = value; Changed(); } }
     public string IssuesLabel { get => _issuesLabel; private set { _issuesLabel = value; Changed(); } }
 
     public RelayCommand ScanCommand { get; }
     public RelayCommand CancelCommand { get; }
+    public RelayCommand AnalyzeWindowsCommand { get; }
 
     public MainViewModel(IDiskScanner scanner)
     {
@@ -65,6 +70,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _selectedDrive = Drives.FirstOrDefault();
         ScanCommand = new RelayCommand(() => _ = ScanAsync(), () => !_isScanning && SelectedDrive is not null);
         CancelCommand = new RelayCommand(() => _scanCancellation?.Cancel(), () => _isScanning);
+        AnalyzeWindowsCommand = new RelayCommand(() => _ = AnalyzeWindowsAsync(), () => !_isScanning);
+    }
+
+    private async Task AnalyzeWindowsAsync()
+    {
+        if (_isScanning) return;
+        _isScanning = true;
+        ScanCommand.RaiseCanExecuteChanged();
+        AnalyzeWindowsCommand.RaiseCanExecuteChanged();
+        CancelCommand.RaiseCanExecuteChanged();
+        _scanCancellation = new CancellationTokenSource();
+        ComponentStatus = "Analyse DISM en cours…";
+        ComponentReport = "";
+        try
+        {
+            var result = await new WindowsComponentInspector().InspectAsync(_scanCancellation.Token);
+            ComponentStatus = result.Status;
+            ComponentReport = result.RawOutput ?? result.Details;
+        }
+        catch (OperationCanceledException)
+        {
+            ComponentStatus = "Analyse annulée";
+        }
+        catch (Exception ex)
+        {
+            ComponentStatus = "Erreur";
+            ComponentReport = ex.Message;
+        }
+        finally
+        {
+            _scanCancellation.Dispose();
+            _scanCancellation = null;
+            _isScanning = false;
+            ScanCommand.RaiseCanExecuteChanged();
+            AnalyzeWindowsCommand.RaiseCanExecuteChanged();
+            CancelCommand.RaiseCanExecuteChanged();
+        }
     }
 
     private async Task ScanAsync()
@@ -72,6 +114,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (_isScanning || SelectedDrive is null) return;
         _isScanning = true;
         ScanCommand.RaiseCanExecuteChanged();
+        AnalyzeWindowsCommand.RaiseCanExecuteChanged();
         CancelCommand.RaiseCanExecuteChanged();
         _scanCancellation = new CancellationTokenSource();
         Entries.Clear();
@@ -121,6 +164,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _scanCancellation = null;
             _isScanning = false;
             ScanCommand.RaiseCanExecuteChanged();
+            AnalyzeWindowsCommand.RaiseCanExecuteChanged();
             CancelCommand.RaiseCanExecuteChanged();
         }
     }
