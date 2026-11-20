@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     private void UpdateCleanupSelection()
     {
         CleanupPreviewButton.IsEnabled = !_cleanupBusy;
+        CleanupOverviewButton.IsEnabled = !_cleanupBusy;
         CleanupCancelButton.IsEnabled = _cleanupBusy;
         CleanupLocation.IsEnabled = !_cleanupBusy;
         CleanupRecycleButton.IsEnabled = !_cleanupBusy && CleanupFiles.SelectedItems.Count > 0;
@@ -54,6 +55,48 @@ public partial class MainWindow : Window
                 if (item is Discoscope.Desktop.Services.UserTempCleanup.Candidate candidate)
                     bytes = bytes > long.MaxValue - candidate.Bytes ? long.MaxValue : bytes + candidate.Bytes;
             CleanupStatus.Text = $"{count:N0} sélectionnés · {FormatCleanupBytes(bytes)} (taille logique).";
+        }
+    }
+
+    private async void PreviewCleanupOverview(object sender, RoutedEventArgs e)
+    {
+        if (_cleanupBusy) return;
+        _cleanupBusy = true;
+        _cleanupCancellation = new CancellationTokenSource();
+        UpdateCleanupSelection();
+        CleanupOverviewStatus.Text = "Évaluation en cours…";
+        try
+        {
+            var token = _cleanupCancellation.Token;
+            var user = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(
+                Discoscope.Desktop.Services.UserTempCleanup.Location.User, token));
+            var windows = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(
+                Discoscope.Desktop.Services.UserTempCleanup.Location.Windows, token));
+            static long Total(IReadOnlyList<Discoscope.Desktop.Services.UserTempCleanup.Candidate> items)
+            {
+                long bytes = 0;
+                foreach (var item in items)
+                    bytes = bytes > long.MaxValue - item.Bytes ? long.MaxValue : bytes + item.Bytes;
+                return bytes;
+            }
+            CleanupOverviewStatus.Text = $"Utilisateur : {user.Count:N0} fichiers / {FormatCleanupBytes(Total(user))} · " +
+                $"Windows : {windows.Count:N0} fichiers / {FormatCleanupBytes(Total(windows))} (tailles logiques, 500 max. chacun).";
+        }
+        catch (OperationCanceledException)
+        {
+            CleanupOverviewStatus.Text = "Évaluation annulée.";
+        }
+        catch (Exception ex)
+        {
+            CleanupOverviewStatus.Text = "Évaluation impossible.";
+            MessageBox.Show(this, ex.Message, "Discoscope");
+        }
+        finally
+        {
+            _cleanupCancellation?.Dispose();
+            _cleanupCancellation = null;
+            _cleanupBusy = false;
+            UpdateCleanupSelection();
         }
     }
 
