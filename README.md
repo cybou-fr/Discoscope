@@ -1,5 +1,7 @@
 # Discoscope
 
+![Icône de Discoscope](src/Discoscope.Desktop/Assets/appicon-128.png)
+
 **Explorez votre disque. Retrouvez votre espace.**
 
 Discoscope est un analyseur local de l'espace disque pour Windows 10/11. Il est développé en **C# / .NET 10 / WPF** avec une architecture MVVM. L'interface est entièrement en français ; le code et les API restent en anglais.

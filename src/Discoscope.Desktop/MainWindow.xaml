@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Discoscope.Desktop.Controls"
         Foreground="{StaticResource TextBrush}" FontFamily="Segoe UI"
-        Title="Discoscope — Analyse de l'espace disque" Width="1200" Height="790"
+        Title="Discoscope — Analyse de l'espace disque" Icon="Assets/appicon.ico" Width="1200" Height="790"
         MinWidth="900" MinHeight="620" Background="{StaticResource CanvasBrush}"
         WindowStartupLocation="CenterScreen" Language="fr-FR" UseLayoutRounding="True">
     <Grid Margin="20">
@@ -18,6 +18,8 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <DockPanel Grid.Row="0">
+            <Image DockPanel.Dock="Left" Source="Assets/appicon-128.png" Width="44" Height="44"
+                   Margin="0,0,12,0" VerticalAlignment="Center"/>
             <StackPanel DockPanel.Dock="Left">
                 <TextBlock Text="DISCOSCOPE" FontWeight="Bold" FontSize="27" Foreground="{StaticResource AccentBrush}"/>
                 <TextBlock Text="Comprenez ce qui occupe votre disque." Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>

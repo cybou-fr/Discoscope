@@ -5,8 +5,11 @@
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Discoscope</AssemblyName>
+    <ApplicationIcon>Assets\appicon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets/appicon.ico" />
+    <Resource Include="Assets/appicon-128.png" />
     <ProjectReference Include="../Discoscope.Core/Discoscope.Core.csproj" />
   </ItemGroup>
 </Project>
