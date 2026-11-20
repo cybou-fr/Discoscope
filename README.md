@@ -49,7 +49,11 @@ L’onglet **Clichés instantanés · VSS** exécute uniquement `vssadmin list s
 
 ### Carte des dossiers
 
-Une carte proportionnelle présente jusqu’à 24 sous-dossiers par niveau. Cliquez sur un rectangle pour descendre dans le dossier et utilisez « Retour » pour remonter. La navigation utilise les résultats en mémoire sans relancer le scan. Les surfaces représentent leurs tailles logiques relatives, sans additionner des dossiers parents et enfants. Cette carte ne représente pas l’espace NTFS réellement alloué ni les fichiers directement situés à la racine.
+La carte représente les sous-dossiers immédiats et les fichiers du dossier courant, y compris ceux à la racine du lecteur. Chaque surface correspond à sa part de la taille logique analysée. Les petites entrées sont regroupées dans « Autres » et les éléments de taille nulle restent visibles dans l’Explorateur. Le survol indique le chemin, la taille et le pourcentage. Cliquez sur un dossier pour y entrer ou sur « Retour » pour remonter.
+
+### Explorateur
+
+Sélectionnez un dossier dans l’arborescence ou ouvrez-le dans le tableau par double-clic ou avec Entrée. Retour arrière remonte d’un niveau depuis le tableau. Les en-têtes trient par nom, taille logique ou type. « Copier le chemin » copie le chemin complet et « Ouvrir l’emplacement » affiche le dossier dans l’Explorateur Windows. La carte et l’Explorateur partagent le dossier courant et naviguent dans les résultats en mémoire.
 
 ### Fichiers volumineux
 
@@ -61,7 +65,7 @@ L’onglet **Avertissements** affiche jusqu’à 2 000 chemins ignorés ou inacc
 
 ### Interface
 
-La fenêtre est organisée en quatre vues : **Vue d'ensemble**, **Explorateur**, **Fichiers volumineux** et **Système**. Les résultats du scan sont partagés entre les vues ; changer d’onglet ne relance pas l’analyse. Les diagnostics DISM/VSS sont déclenchés séparément.
+La fenêtre comprend **Vue d’ensemble**, **Explorateur**, **Fichiers volumineux**, **Avertissements** et **Système**. Les résultats restent disponibles lors des changements d’onglet. Les diagnostics DISM/VSS sont déclenchés séparément.
 
 ## Architecture
 

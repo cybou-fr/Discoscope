@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Discoscope.Desktop.Controls"
+        xmlns:vm="clr-namespace:Discoscope.Desktop.ViewModels"
         Foreground="{StaticResource TextBrush}" FontFamily="Segoe UI"
         Title="Discoscope — Analyse de l'espace disque" Icon="Assets/appicon.ico" Width="1200" Height="790"
         MinWidth="900" MinHeight="620" Background="{StaticResource CanvasBrush}"
@@ -127,20 +128,76 @@
                 </TabItem>
                 <TabItem Header="Explorateur">
                     <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <TextBlock Text="Dossiers classés par taille logique" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                                        <DataGrid Grid.Row="1" ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
-                          IsReadOnly="True" HeadersVisibility="Column" Background="#1A2230"
-                          Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
-                          BorderThickness="0" GridLinesVisibility="None" RowHeight="32"
-                          CanUserAddRows="False" EnableRowVirtualization="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Dossier" Binding="{Binding Path}" Width="*"/>
-                        <DataGridTextColumn Header="Taille" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="125"/>
-                        <DataGridTextColumn Header="Fichiers" Binding="{Binding FileCount}" Width="110"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <DockPanel Margin="0,0,0,8">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="Retour" Command="{Binding NavigateBackCommand}" Padding="10,5" Margin="6,0,0,0"/>
+                                <Button Content="Copier le chemin" Click="CopyExplorerPath" Padding="10,5" Margin="6,0,0,0"
+                                        IsEnabled="{Binding HasItems, ElementName=ExplorerTree}"/>
+                                <Button Content="Ouvrir l’emplacement" Click="OpenExplorerLocation" Padding="10,5" Margin="6,0,0,0"
+                                        IsEnabled="{Binding HasItems, ElementName=ExplorerTree}"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding MapPath}" ToolTip="{Binding MapPath}" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" FontWeight="SemiBold"/>
+                        </DockPanel>
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220" MinWidth="140"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TreeView x:Name="ExplorerTree" ItemsSource="{Binding ExplorerRoots}" SelectedItemChanged="SelectExplorerDirectory"
+                                      AutomationProperties.Name="Dossiers" Background="{StaticResource CanvasBrush}"
+                                      Foreground="{StaticResource TextBrush}" BorderThickness="0" Padding="5"
+                                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                                <TreeView.ItemTemplate>
+                                    <HierarchicalDataTemplate DataType="{x:Type vm:ExplorerNode}" ItemsSource="{Binding Children}">
+                                        <TextBlock Text="{Binding Name}" ToolTip="{Binding Directory.Path}"/>
+                                    </HierarchicalDataTemplate>
+                                </TreeView.ItemTemplate>
+                                <TreeView.ItemContainerStyle>
+                                    <Style TargetType="TreeViewItem">
+                                        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                                    </Style>
+                                </TreeView.ItemContainerStyle>
+                            </TreeView>
+                            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="{StaticResource PanelBrush}"/>
+                            <DataGrid x:Name="ExplorerTable" Grid.Column="2" ItemsSource="{Binding ExplorerItems}"
+                                      AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                                      AutomationProperties.Name="Contenu du dossier" SelectionMode="Single" SelectionUnit="FullRow"
+                                      Background="#1A2230" Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
+                                      BorderThickness="0" GridLinesVisibility="None" RowHeight="30" CanUserAddRows="False"
+                                      EnableRowVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                      Sorting="SortExplorer" MouseDoubleClick="OpenExplorerDirectory" PreviewKeyDown="HandleExplorerKey">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Nom" Binding="{Binding Name}" SortMemberPath="Name" Width="*" MinWidth="120"/>
+                                    <DataGridTextColumn Header="Taille logique" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="125"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" SortMemberPath="Type" Width="100"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <TextBlock x:Name="ExplorerEmptyState" Grid.Column="2" IsHitTestVisible="False"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="Text" Value="Ce dossier est vide ou inaccessible."/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasItems, ElementName=ExplorerTable}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding CurrentDirectory}" Value="{x:Null}">
+                                                <Setter Property="Text" Value="Analysez un lecteur pour afficher ses fichiers."/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Grid>
                 </TabItem>
                 <TabItem Header="Fichiers volumineux">

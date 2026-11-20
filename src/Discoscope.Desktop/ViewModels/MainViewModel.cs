@@ -26,17 +26,19 @@ public sealed record DirectoryRow(string Path, long Bytes, long FileCount)
 
 internal static class SizeFormatter
 {
+    private static readonly string[] Units = ["o", "Kio", "Mio", "Gio", "Tio"];
+    private static readonly CultureInfo French = CultureInfo.GetCultureInfo("fr-FR");
+
     public static string Format(long bytes)
     {
-        string[] units = ["o", "Kio", "Mio", "Gio", "Tio"];
         double value = bytes;
         int unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
+        while (value >= 1024 && unit < Units.Length - 1)
         {
             value /= 1024;
             unit++;
         }
-        return string.Create(CultureInfo.GetCultureInfo("fr-FR"), $"{value:N1} {units[unit]}");
+        return string.Create(French, $"{value:N1} {Units[unit]}");
     }
 }
 
@@ -54,6 +56,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _freeLabel = "—";
     private string _mapPath = "Aucune analyse";
     private ScanDirectory? _currentDirectory;
+    private ExplorerNode? _explorerRoot;
+    private int _explorerSortVersion;
     private CancellationTokenSource? _navigationCancellation;
     private string _vssStatus = "Non analysé";
     private string _vssReport = "L’analyse VSS est disponible séparément.";
@@ -69,6 +73,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<ScanIssueRow> ScanIssues { get; } = [];
     public IReadOnlyList<TreemapItem> MapEntries { get; private set; } = [];
     public ScanDirectory? CurrentDirectory => _currentDirectory;
+    public IReadOnlyList<ExplorerNode> ExplorerRoots { get; private set; } = [];
+    public ExplorerRows? ExplorerItems { get; private set; }
     public string MapHint => MapEntries.Count > 0 ? ""
         : _currentDirectory is null ? MapPath
         : _currentDirectory.Bytes == 0 ? "Aucune donnée de taille non nulle." : "Préparation de la carte…";
@@ -135,9 +141,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _currentDirectory = directory;
         if (directory is not null) MapPath = directory.Path;
         Changed(nameof(CurrentDirectory));
+        UpdateExplorer(directory);
         SetMapEntries([]);
         NavigateBackCommand.RaiseCanExecuteChanged();
         NavigateMapCommand.RaiseCanExecuteChanged();
+    }
+
+    private void UpdateExplorer(ScanDirectory? directory)
+    {
+        _explorerSortVersion++;
+        ExplorerItems = directory is null ? null : new ExplorerRows(directory);
+        Changed(nameof(ExplorerItems));
+        if (directory is null || directory.Parent is null && _explorerRoot is null)
+        {
+            _explorerRoot = directory is null ? null : new ExplorerNode(directory);
+            ExplorerRoots = _explorerRoot is null ? [] : [_explorerRoot];
+            Changed(nameof(ExplorerRoots));
+        }
+        if (directory is null || _explorerRoot is null) return;
+
+        var trail = new Stack<ScanDirectory>();
+        for (var part = directory; part.Parent is not null; part = part.Parent)
+            trail.Push(part);
+        var node = _explorerRoot;
+        while (trail.TryPop(out var part))
+        {
+            node.IsExpanded = true;
+            node = node.Children.First(child => ReferenceEquals(child.Directory, part));
+        }
+        node.IsSelected = true;
+    }
+
+    public async Task<bool> SortExplorerAsync(string property, ListSortDirection direction)
+    {
+        if (ExplorerItems is not { } items) return false;
+        int version = ++_explorerSortVersion;
+        var sorted = await Task.Run(() => items.Sort(property, direction));
+        if (version != _explorerSortVersion) return false;
+        ExplorerItems = sorted;
+        Changed(nameof(ExplorerItems));
+        return true;
     }
 
     private void SetMapEntries(IReadOnlyList<TreemapItem> entries)
