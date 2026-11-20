@@ -1,25 +1,36 @@
+using System.Globalization;
+using System.IO;
 using System.Windows;
-using System.Windows.Media;
 using System.Windows.Input;
+using System.Windows.Media;
+using Discoscope.Core.Models;
 using Discoscope.Desktop.ViewModels;
 
 namespace Discoscope.Desktop.Controls;
 
-/// <summary>Read-only proportional view of the largest direct child directories.</summary>
 public sealed class TreemapView : FrameworkElement
 {
-    public static readonly DependencyProperty ItemsProperty =
-        DependencyProperty.Register(nameof(Items), typeof(IEnumerable<DirectoryRow>),
-            typeof(TreemapView), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ItemsProperty = DependencyProperty.Register(nameof(Items),
+        typeof(IReadOnlyList<TreemapItem>), typeof(TreemapView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public IEnumerable<DirectoryRow>? Items
+    public static readonly DependencyProperty DirectoryPathProperty = DependencyProperty.Register(nameof(DirectoryPath),
+        typeof(string), typeof(TreemapView));
+
+    public static readonly DependencyProperty NavigateCommandProperty = DependencyProperty.Register(nameof(NavigateCommand),
+        typeof(ICommand), typeof(TreemapView));
+
+    public IReadOnlyList<TreemapItem>? Items
     {
-        get => (IEnumerable<DirectoryRow>?)GetValue(ItemsProperty);
+        get => (IReadOnlyList<TreemapItem>?)GetValue(ItemsProperty);
         set => SetValue(ItemsProperty, value);
     }
 
-    public static readonly DependencyProperty NavigateCommandProperty =
-        DependencyProperty.Register(nameof(NavigateCommand), typeof(ICommand), typeof(TreemapView));
+    public string? DirectoryPath
+    {
+        get => (string?)GetValue(DirectoryPathProperty);
+        set => SetValue(DirectoryPathProperty, value);
+    }
 
     public ICommand? NavigateCommand
     {
@@ -27,58 +38,94 @@ public sealed class TreemapView : FrameworkElement
         set => SetValue(NavigateCommandProperty, value);
     }
 
-    private readonly List<(Rect Bounds, DirectoryRow Entry)> _hitAreas = [];
+    private static readonly CultureInfo French = CultureInfo.GetCultureInfo("fr-FR");
+    private static readonly Brush BackgroundBrush = FrozenBrush(18, 26, 38);
+    private static readonly Brush GroupBrush = FrozenBrush(61, 73, 94);
+    private static readonly Brush[] DirectoryBrushes = [FrozenBrush(28, 99, 135), FrozenBrush(30, 108, 120), FrozenBrush(56, 86, 146)];
+    private static readonly Brush[] FileBrushes = [FrozenBrush(109, 67, 138), FrozenBrush(124, 62, 113)];
+    private static readonly Typeface LabelTypeface = new("Segoe UI");
+    private IReadOnlyList<TreemapTile> _tiles = [];
+    private TreemapTile? _hovered;
+    private long _total;
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        var tile = FindTile(e.GetPosition(this));
+        if (tile == _hovered) return;
+
+        _hovered = tile;
+        Cursor = tile?.Item.Directory is null ? Cursors.Arrow : Cursors.Hand;
+        if (tile is not { Item: var item })
+        {
+            ToolTip = null;
+            return;
+        }
+
+        var location = item.IsGroup ? DirectoryPath : item.Directory?.Path ?? Path.Join(DirectoryPath, item.Name);
+        ToolTip = string.Create(French, $"{item.Name}\n{location}\n{SizeFormatter.Format(item.Bytes)} · {(double)item.Bytes / _total:P2}");
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _hovered = null;
+        ToolTip = null;
+        Cursor = Cursors.Arrow;
+    }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
-        var point = e.GetPosition(this);
-        var selected = _hitAreas.FirstOrDefault(x => x.Bounds.Contains(point)).Entry;
-        if (selected is not null && NavigateCommand?.CanExecute(selected.Path) == true)
-            NavigateCommand.Execute(selected.Path);
+        if (FindTile(e.GetPosition(this))?.Item.Directory is { } directory && NavigateCommand?.CanExecute(directory) == true)
+        {
+            NavigateCommand.Execute(directory);
+            e.Handled = true;
+        }
+    }
+
+    private TreemapTile? FindTile(Point point)
+    {
+        foreach (var tile in _tiles)
+            if (tile.Contains(point.X, point.Y)) return tile;
+        return null;
     }
 
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
-        _hitAreas.Clear();
-        var width = ActualWidth;
-        var height = ActualHeight;
-        if (width <= 0 || height <= 0) return;
-        dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(18, 26, 38)), null, new Rect(0, 0, width, height));
-        var items = Items?.Where(x => x.Bytes > 0).OrderByDescending(x => x.Bytes).Take(24).ToArray() ?? [];
-        if (items.Length == 0) return;
-
-        // Slice-and-dice: exact proportional areas, bounded number of rendered rectangles.
-        var remainingBytes = new double[items.Length + 1];
-        for (int i = items.Length - 1; i >= 0; i--)
-            remainingBytes[i] = remainingBytes[i + 1] + items[i].Bytes;
-        var bounds = new Rect(0, 0, width, height);
-        for (int i = 0; i < items.Length; i++)
+        _hovered = null;
+        ToolTip = null;
+        _tiles = TreemapLayout.Arrange(Items ?? [], ActualWidth, ActualHeight);
+        _total = _tiles.Sum(tile => tile.Item.Bytes);
+        dc.DrawRectangle(BackgroundBrush, null, new Rect(0, 0, ActualWidth, ActualHeight));
+        for (int i = 0; i < _tiles.Count; i++)
         {
-            var item = items[i];
-            double share = item.Bytes / remainingBytes[i];
-            var rect = bounds.Width >= bounds.Height
-                ? new Rect(bounds.X, bounds.Y, bounds.Width * share, bounds.Height)
-                : new Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height * share);
-            bounds = bounds.Width >= bounds.Height
-                ? new Rect(bounds.X + rect.Width, bounds.Y, bounds.Width - rect.Width, bounds.Height)
-                : new Rect(bounds.X, bounds.Y + rect.Height, bounds.Width, bounds.Height - rect.Height);
-            if (rect.Width < 2 || rect.Height < 2) continue;
-            _hitAreas.Add((rect, item));
-            var color = Color.FromRgb((byte)(33 + i * 5 % 35), (byte)(105 + i * 11 % 65), (byte)(150 + i * 7 % 85));
-            var fill = new SolidColorBrush(color);
-            dc.DrawRoundedRectangle(fill, new Pen(new SolidColorBrush(Color.FromRgb(18, 26, 38)), 2),
-                new Rect(rect.X + 1, rect.Y + 1, Math.Max(0, rect.Width - 2), Math.Max(0, rect.Height - 2)), 5, 5);
-            if (rect.Width < 85 || rect.Height < 32) continue;
-            var label = System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(item.Path));
-            if (string.IsNullOrEmpty(label)) label = item.Path;
-            var formatted = new FormattedText(label + " · " + item.SizeLabel,
-                System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-                new Typeface("Segoe UI"), 12, Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip)
-            { MaxTextWidth = Math.Max(1, rect.Width - 16), MaxTextHeight = Math.Max(1, rect.Height - 12),
-              Trimming = TextTrimming.CharacterEllipsis };
-            dc.DrawText(formatted, new Point(rect.X + 8, rect.Y + 6));
+            var tile = _tiles[i];
+            var item = tile.Item;
+            var brush = item.IsGroup ? GroupBrush : item.Directory is null
+                ? FileBrushes[i % FileBrushes.Length] : DirectoryBrushes[i % DirectoryBrushes.Length];
+            var bounds = new Rect(tile.X, tile.Y, tile.Width, tile.Height);
+            dc.DrawRectangle(brush, null, bounds);
+            if (tile.Width < 42 || tile.Height < 22) continue;
+
+            var text = new FormattedText(item.Name, French, FlowDirection.LeftToRight, LabelTypeface, 12,
+                Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip)
+            {
+                MaxTextWidth = tile.Width - 10,
+                MaxTextHeight = tile.Height - 7,
+                Trimming = TextTrimming.CharacterEllipsis
+            };
+            dc.PushClip(new RectangleGeometry(bounds));
+            dc.DrawText(text, new Point(tile.X + 5, tile.Y + 3));
+            dc.Pop();
         }
+    }
+
+    private static Brush FrozenBrush(byte red, byte green, byte blue)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(red, green, blue));
+        brush.Freeze();
+        return brush;
     }
 }

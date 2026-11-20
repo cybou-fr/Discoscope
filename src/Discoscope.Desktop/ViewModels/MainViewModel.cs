@@ -53,8 +53,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _volumeLabel = "—";
     private string _freeLabel = "—";
     private string _mapPath = "Aucune analyse";
-    private Dictionary<string, DirectoryRow[]> _mapIndex = new(StringComparer.Ordinal);
-    private string _mapRoot = "";
+    private ScanDirectory? _currentDirectory;
+    private CancellationTokenSource? _navigationCancellation;
     private string _vssStatus = "Non analysé";
     private string _vssReport = "L’analyse VSS est disponible séparément.";
     private string _componentStatus = "Non analysé";
@@ -67,9 +67,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
     public ObservableCollection<LargeFileRow> LargestFiles { get; } = [];
     public ObservableCollection<ScanIssueRow> ScanIssues { get; } = [];
-    public IReadOnlyList<DirectoryRow> MapEntries { get; private set; } = [];
+    public IReadOnlyList<TreemapItem> MapEntries { get; private set; } = [];
+    public ScanDirectory? CurrentDirectory => _currentDirectory;
     public string MapHint => MapEntries.Count > 0 ? ""
-        : _mapIndex.ContainsKey(MapPath) ? "Aucun sous-dossier de taille non nulle." : MapPath;
+        : _currentDirectory is null ? MapPath
+        : _currentDirectory.Bytes == 0 ? "Aucune donnée de taille non nulle." : "Préparation de la carte…";
     public bool IsBusy => _isScanning;
     public bool CanSelectDrive => !IsBusy;
     public string MapPath { get => _mapPath; private set { _mapPath = value; Changed(); } }
@@ -100,30 +102,49 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CancelCommand = new RelayCommand(() => _scanCancellation?.Cancel(), () => _isScanning);
         AnalyzeWindowsCommand = new RelayCommand(() => _ = AnalyzeWindowsAsync(), () => !_isScanning);
         AnalyzeVssCommand = new RelayCommand(() => _ = AnalyzeVssAsync(), () => !_isScanning);
-        NavigateBackCommand = new RelayCommand(NavigateBack, () => !_isScanning && _mapPath != _mapRoot && _mapIndex.ContainsKey(_mapPath));
-        NavigateMapCommand = new ParameterCommand(p => { if (p is string path) ShowMap(path); }, p => !_isScanning && p is string path && _mapIndex.ContainsKey(path));
+        NavigateBackCommand = new RelayCommand(() => _ = ShowDirectoryAsync(_currentDirectory!.Parent!),
+            () => !_isScanning && _currentDirectory?.Parent is not null);
+        NavigateMapCommand = new ParameterCommand(p => _ = ShowDirectoryAsync((ScanDirectory)p!),
+            p => !_isScanning && p is ScanDirectory directory && !ReferenceEquals(directory, _currentDirectory));
     }
 
-    private void ShowMap(string path)
+    private async Task ShowDirectoryAsync(ScanDirectory directory)
     {
-        if (!_mapIndex.TryGetValue(path, out var children)) return;
-        MapPath = path;
-        SetMapEntries(children.Where(x => x.Bytes > 0).Take(24).ToArray());
+        _navigationCancellation?.Cancel();
+        using var cancellation = new CancellationTokenSource();
+        _navigationCancellation = cancellation;
+        SetDirectory(directory);
+        try
+        {
+            var items = await Task.Run(() => TreemapLayout.Summarize(directory, cancellation.Token), cancellation.Token);
+            if (!cancellation.IsCancellationRequested)
+                SetMapEntries(items);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_navigationCancellation, cancellation))
+                _navigationCancellation = null;
+        }
+    }
+
+    private void SetDirectory(ScanDirectory? directory)
+    {
+        _currentDirectory = directory;
+        if (directory is not null) MapPath = directory.Path;
+        Changed(nameof(CurrentDirectory));
+        SetMapEntries([]);
         NavigateBackCommand.RaiseCanExecuteChanged();
         NavigateMapCommand.RaiseCanExecuteChanged();
     }
 
-    private void SetMapEntries(IReadOnlyList<DirectoryRow> entries)
+    private void SetMapEntries(IReadOnlyList<TreemapItem> entries)
     {
         MapEntries = entries;
         Changed(nameof(MapEntries));
         Changed(nameof(MapHint));
-    }
-
-    private void NavigateBack()
-    {
-        var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(MapPath));
-        if (parent is not null && _mapIndex.ContainsKey(parent)) ShowMap(parent);
     }
 
     private async Task AnalyzeVssAsync()
@@ -217,9 +238,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         TemporaryEntries.Clear();
         LargestFiles.Clear();
         ScanIssues.Clear();
-        _mapIndex.Clear();
+        _navigationCancellation?.Cancel();
         MapPath = "Analyse en cours…";
-        SetMapEntries([]);
+        SetDirectory(null);
         try
         {
             var volume = await Task.Run(() => new VolumeInspector().Inspect(root));
@@ -247,19 +268,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             acceptProgress = false;
             Status = "Analyse des emplacements temporaires…";
             var temporaryEntries = await new TemporaryFilesInspector().InspectAsync(activeScan.Token);
-            var mapIndex = await Task.Run(() =>
-            {
-                var rows = result.Entries.Select(e => new DirectoryRow(e.Path, e.Bytes, e.FileCount)).ToArray();
-                var index = rows.GroupBy(e => Path.GetDirectoryName(e.Path) ?? "", StringComparer.Ordinal)
-                    .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
-                index.TryAdd(result.Root, []);
-                foreach (var row in rows)
-                {
-                    activeScan.Token.ThrowIfCancellationRequested();
-                    index.TryAdd(row.Path, []);
-                }
-                return index;
-            }, activeScan.Token);
+            var directory = result.Hierarchy;
+            var mapItems = directory is null ? [] : await Task.Run(
+                () => TreemapLayout.Summarize(directory, activeScan.Token), activeScan.Token);
             activeScan.Token.ThrowIfCancellationRequested();
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
@@ -270,9 +281,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 LargestFiles.Add(new LargeFileRow(file.Path, file.Bytes));
             foreach (var temp in temporaryEntries)
                 TemporaryEntries.Add(new TemporaryRow(temp.Name, temp.Path, SizeFormatter.Format(temp.LogicalBytes), temp.FileCount, temp.SkippedCount));
-            _mapRoot = Path.TrimEndingDirectorySeparator(result.Root);
-            _mapIndex = mapIndex;
-            ShowMap(_mapRoot);
+            SetDirectory(directory);
+            SetMapEntries(mapItems);
             foreach (var entry in result.Entries.Take(300))
                 Entries.Add(new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount));
             Status = $"Analyse terminée à {result.CompletedAt:HH:mm} · {result.DirectoryCount:N0} dossiers · {result.Issues.Count:N0} avertissements.";

@@ -118,8 +118,8 @@
                                 <TextBlock Text="{Binding MapPath}" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" ToolTip="{Binding MapPath}"/>
                             </DockPanel>
-                            <controls:TreemapView Grid.Row="2" Items="{Binding MapEntries}" NavigateCommand="{Binding NavigateMapCommand}"
-                                                  ToolTip="Cliquez sur un dossier pour explorer son contenu"/>
+                            <controls:TreemapView Grid.Row="2" Items="{Binding MapEntries}" DirectoryPath="{Binding MapPath}"
+                                                  NavigateCommand="{Binding NavigateMapCommand}"/>
                             <TextBlock Grid.Row="2" Text="{Binding MapHint}" IsHitTestVisible="False" TextWrapping="Wrap"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
                         </Grid>
