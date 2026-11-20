@@ -270,34 +270,8 @@ public partial class MainWindow : Window
         if (MessageBox.Show(this,
             $"Déplacer TOUS les {inventory.Count:N0} fichiers indexés ({FormatCleanupBytes(inventory.LogicalBytes)} logiques) vers la Corbeille ?\n\nLes fichiers sont revérifiés individuellement. Cette opération peut être longue et l’espace libre n’augmentera pas avant de vider la Corbeille.",
             "Confirmer le nettoyage complet", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-        _cleanupBusy = true;
-        _cleanupCancellation = new CancellationTokenSource();
-        UpdateCleanupSelection();
-        CleanupStatus.Text = "Nettoyage par lots en cours…";
-        try
-        {
-            var token = _cleanupCancellation.Token;
-            var progress = CleanupProgress<UserTempCleanup.RecycleProgress>(p =>
-                CleanupStatus.Text = $"{p.Processed:N0} / {p.Total:N0} traités · {p.Recycled:N0} déplacés · {p.Skipped:N0} ignorés…");
-            var report = await Task.Run(() => UserTempCleanup.RecycleInventory(inventory, location, token, progress));
-            _cleanupProgressVersion++;
-            ReleaseCleanupInventory();
-            CleanupStatus.Text = $"{report.Result.Recycled:N0} déplacés · {report.Result.Skipped:N0} ignorés · {FormatCleanupBytes(report.Result.LogicalBytes)} logiques" +
-                CleanupOutcome(report, " · Nettoyage terminé.");
-            if (!_closeAfterCleanup && report.Errors.Count > 0)
-                MessageBox.Show(this, string.Join(Environment.NewLine, report.Errors.Take(20)),
-                    "Fichiers ignorés — détails", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            ReleaseCleanupInventory();
-            CleanupStatus.Text = "Nettoyage interrompu ; certains fichiers ont peut-être été déplacés.";
-            ShowCleanupMessage(ex.Message);
-        }
-        finally
-        {
-            FinishCleanup();
-        }
+        await RunCleanupAsync((token, progress) => UserTempCleanup.RecycleInventory(inventory, location, token, progress),
+            "Nettoyage par lots en cours…", " · Nettoyage terminé.");
     }
 
     private async void RecycleUserTempCleanup(object sender, RoutedEventArgs e)
@@ -313,37 +287,44 @@ public partial class MainWindow : Window
             $"Déplacer {selected.Length:N0} {fileLabel} ({FormatCleanupBytes(total)} logiques) vers la Corbeille ?\n\nL’espace libre ne sera pas nécessairement augmenté avant de vider la Corbeille.",
             "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         var location = SelectedCleanupLocation;
+        await RunCleanupAsync((token, progress) => UserTempCleanup.RecycleWithReport(selected, location, token, progress),
+            "Déplacement vers la Corbeille…", " · Résultats du disque à actualiser.");
+    }
+
+    private async Task RunCleanupAsync(
+        Func<CancellationToken, IProgress<UserTempCleanup.RecycleProgress>, UserTempCleanup.RecycleReport> recycle,
+        string runningStatus, string completedStatus)
+    {
         _cleanupBusy = true;
         _cleanupCancellation = new CancellationTokenSource();
         UpdateCleanupSelection();
-        CleanupStatus.Text = "Déplacement vers la Corbeille…";
+        CleanupStatus.Text = runningStatus;
         try
         {
-            var token = _cleanupCancellation!.Token;
+            var token = _cleanupCancellation.Token;
             var progress = CleanupProgress<UserTempCleanup.RecycleProgress>(p =>
                 CleanupStatus.Text = $"{p.Processed:N0} / {p.Total:N0} traités · {p.Recycled:N0} déplacés · {p.Skipped:N0} ignorés…");
-            var report = await Task.Run(() => UserTempCleanup.RecycleWithReport(selected, location, token, progress));
+            var report = await Task.Run(() => recycle(token, progress));
             _cleanupProgressVersion++;
             ReleaseCleanupInventory();
             var result = report.Result;
-            CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({FormatCleanupBytes(result.LogicalBytes)} logiques) · {result.Skipped:N0} ignorés" +
-                CleanupOutcome(report, " · Résultats du disque à actualiser.");
+            CleanupStatus.Text = $"{result.Recycled:N0} déplacés · {result.Skipped:N0} ignorés · {FormatCleanupBytes(result.LogicalBytes)} logiques" +
+                CleanupOutcome(report, completedStatus);
             if (!_closeAfterCleanup && report.Errors.Count > 0)
                 MessageBox.Show(this, string.Join(Environment.NewLine, report.Errors.Take(20)) +
                     (report.Errors.Count > 20 ? "\n… (extrait des 100 premières anomalies)." : ""),
                     "Fichiers ignorés — détails", MessageBoxButton.OK, MessageBoxImage.Information);
         }
-        catch (OperationCanceledException)
-        {
-            ReleaseCleanupInventory();
-            CleanupStatus.Text = "Opération annulée. Certains fichiers peuvent déjà avoir été déplacés. Relancez la recherche.";
-        }
         catch (Exception ex)
         {
-            CleanupStatus.Text = "Nettoyage interrompu.";
+            ReleaseCleanupInventory();
+            CleanupStatus.Text = "Nettoyage interrompu ; certains fichiers ont peut-être été déplacés.";
             ShowCleanupMessage(ex.Message);
         }
-        finally { FinishCleanup(); }
+        finally
+        {
+            FinishCleanup();
+        }
     }
 
     private static string CleanupOutcome(UserTempCleanup.RecycleReport report, string completed) =>
