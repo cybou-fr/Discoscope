@@ -79,23 +79,16 @@ public partial class MainWindow : Window
             var token = _cleanupCancellation.Token;
             var userProgress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.Progress>(p =>
                 CleanupOverviewStatus.Text = $"Utilisateur : {p.Visited:N0} entrées examinées, {p.Eligible:N0} fichiers éligibles…");
-            var user = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(
+            var user = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Summarize(
                 Discoscope.Desktop.Services.UserTempCleanup.Location.User, token, userProgress));
             var windowsProgress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.Progress>(p =>
                 CleanupOverviewStatus.Text = $"Windows : {p.Visited:N0} entrées examinées, {p.Eligible:N0} fichiers éligibles…");
-            var windows = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(
+            var windows = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Summarize(
                 Discoscope.Desktop.Services.UserTempCleanup.Location.Windows, token, windowsProgress));
-            static long Total(IReadOnlyList<Discoscope.Desktop.Services.UserTempCleanup.Candidate> items)
-            {
-                long bytes = 0;
-                foreach (var item in items)
-                    bytes = bytes > long.MaxValue - item.Bytes ? long.MaxValue : bytes + item.Bytes;
-                return bytes;
-            }
             CleanupCategories.ItemsSource = new[]
             {
-                new CleanupCategoryRow("Temporaires utilisateur", user.Count, FormatCleanupBytes(Total(user)), Discoscope.Desktop.Services.UserTempCleanup.Location.User),
-                new CleanupCategoryRow("Temporaires Windows", windows.Count, FormatCleanupBytes(Total(windows)), Discoscope.Desktop.Services.UserTempCleanup.Location.Windows)
+                new CleanupCategoryRow("Temporaires utilisateur", user.Eligible, FormatCleanupBytes(user.LogicalBytes), Discoscope.Desktop.Services.UserTempCleanup.Location.User),
+                new CleanupCategoryRow("Temporaires Windows", windows.Eligible, FormatCleanupBytes(windows.LogicalBytes), Discoscope.Desktop.Services.UserTempCleanup.Location.Windows)
             };
             CleanupOverviewStatus.Text = "Sélectionnez une catégorie ci-dessous pour consulter ses fichiers.";
         }
