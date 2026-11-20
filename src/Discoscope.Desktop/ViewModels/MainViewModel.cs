@@ -52,6 +52,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ObservableCollection<DirectoryRow> Entries { get; } = [];
     public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
+    public ObservableCollection<DirectoryRow> MapEntries { get; } = [];
     public string? SelectedDrive { get => _selectedDrive; set { _selectedDrive = value; Changed(); ScanCommand.RaiseCanExecuteChanged(); } }
     public string Status { get => _status; private set { _status = value; Changed(); } }
     public string FilesLabel { get => _filesLabel; private set { _filesLabel = value; Changed(); } }
@@ -161,6 +162,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _scanCancellation = new CancellationTokenSource();
         Entries.Clear();
         TemporaryEntries.Clear();
+        MapEntries.Clear();
         try
         {
             var volume = new VolumeInspector().Inspect(SelectedDrive);
@@ -188,6 +190,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IssuesLabel = result.Issues.Count.ToString("N0");
             foreach (var temp in await new TemporaryFilesInspector().InspectAsync(_scanCancellation.Token))
                 TemporaryEntries.Add(new TemporaryRow(temp.Name, temp.Path, SizeFormatter.Format(temp.LogicalBytes), temp.FileCount, temp.SkippedCount));
+            var rootPath = Path.TrimEndingDirectorySeparator(result.Root);
+            foreach (var entry in result.Entries.Where(e => string.Equals(
+                Path.TrimEndingDirectorySeparator(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(e.Path)) ?? ""),
+                rootPath, StringComparison.OrdinalIgnoreCase)).OrderByDescending(e => e.Bytes).Take(24))
+                MapEntries.Add(new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount));
             foreach (var entry in result.Entries.Take(300))
                 Entries.Add(new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount));
             Status = $"Analyse terminée à {result.CompletedAt:HH:mm} · {result.DirectoryCount:N0} dossiers · {result.Issues.Count:N0} avertissements.";

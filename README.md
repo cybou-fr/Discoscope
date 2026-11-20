@@ -46,6 +46,10 @@ Le bouton **Analyser Windows** lance uniquement `DISM /Online /Cleanup-Image /An
 
 L’onglet **Clichés instantanés · VSS** exécute uniquement `vssadmin list shadowstorage`. La sortie brute permet d’inspecter les associations de stockage des clichés. La commande peut nécessiter des droits administrateur ; une erreur de permissions reste visible. **Aucune suppression, aucun redimensionnement et aucune estimation de gain récupérable** ne sont effectués.
 
+### Carte des dossiers
+
+Une carte proportionnelle en lecture seule présente jusqu’à 24 dossiers immédiatement sous la racine analysée. Les surfaces représentent leurs tailles logiques relatives, sans additionner des dossiers parents et enfants. Cette carte ne représente pas l’espace NTFS réellement alloué ni les fichiers directement situés à la racine.
+
 ## Architecture
 
 - `Discoscope.Core` : modèles et scanner de dossiers, indépendants de WPF.
