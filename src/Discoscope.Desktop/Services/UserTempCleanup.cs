@@ -6,6 +6,7 @@ public static class UserTempCleanup
     public sealed record Candidate(string Path, long Bytes, DateTime ModifiedUtc);
     public sealed record Result(int Recycled, int Skipped, long LogicalBytes);
     public sealed record RecycleProgress(int Processed, int Total, int Recycled, int Skipped, long LogicalBytes);
+    public sealed record RecycleReport(Result Result, bool Cancelled, IReadOnlyList<string> Errors);
     public sealed record Progress(long Visited, int Eligible, long LogicalBytes);
     public enum Location { User, Windows }
     public const int PreviewLimit = 1000;
@@ -139,21 +140,36 @@ public static class UserTempCleanup
         return result;
     }
 
-    public static Result Recycle(IReadOnlyList<Candidate> candidates, Location location = Location.User, CancellationToken token = default, IProgress<RecycleProgress>? progress = null)
+    // Return partial results on cancellation instead of losing the count of files already moved.
+    public static RecycleReport RecycleWithReport(IReadOnlyList<Candidate> candidates,
+        Location location = Location.User, CancellationToken token = default,
+        IProgress<RecycleProgress>? progress = null)
     {
         var root = GetRoot(location);
         int recycled = 0, skipped = 0, processed = 0;
         long bytes = 0;
+        var errors = new List<string>();
+        bool cancelled = false;
         foreach (var item in candidates)
         {
-            token.ThrowIfCancellationRequested();
+            if (token.IsCancellationRequested) { cancelled = true; break; }
             try
             {
-                if (!Allowed(item.Path, root)) { skipped++; continue; }
+                if (!Allowed(item.Path, root))
+                {
+                    skipped++;
+                    if (errors.Count < 100) errors.Add($"Hors emplacement autorisé : {item.Path}");
+                    continue;
+                }
                 var info = new FileInfo(item.Path);
                 if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0 ||
                     info.Length != item.Bytes || info.LastWriteTimeUtc != item.ModifiedUtc ||
-                    info.LastWriteTimeUtc > DateTime.UtcNow.AddDays(-7)) { skipped++; continue; }
+                    info.LastWriteTimeUtc > DateTime.UtcNow.AddDays(-7))
+                {
+                    skipped++;
+                    if (errors.Count < 100) errors.Add($"Fichier modifié, absent ou non éligible : {item.Path}");
+                    continue;
+                }
                 FileSystem.DeleteFile(item.Path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
                 recycled++;
                 bytes = bytes > long.MaxValue - item.Bytes ? long.MaxValue : bytes + item.Bytes;
@@ -161,6 +177,7 @@ public static class UserTempCleanup
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
                 skipped++;
+                if (errors.Count < 100) errors.Add($"{item.Path} : {ex.Message}");
             }
             finally
             {
@@ -169,6 +186,15 @@ public static class UserTempCleanup
                     progress?.Report(new RecycleProgress(processed, candidates.Count, recycled, skipped, bytes));
             }
         }
-        return new Result(recycled, skipped, bytes);
+        progress?.Report(new RecycleProgress(processed, candidates.Count, recycled, skipped, bytes));
+        return new RecycleReport(new Result(recycled, skipped, bytes), cancelled, errors);
+    }
+
+    public static Result Recycle(IReadOnlyList<Candidate> candidates, Location location = Location.User,
+        CancellationToken token = default, IProgress<RecycleProgress>? progress = null)
+    {
+        var report = RecycleWithReport(candidates, location, token, progress);
+        if (report.Cancelled) throw new OperationCanceledException(token);
+        return report.Result;
     }
 }

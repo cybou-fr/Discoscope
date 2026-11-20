@@ -207,9 +207,15 @@ public partial class MainWindow : Window
             var token = _cleanupCancellation!.Token;
             var progress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.RecycleProgress>(p =>
                 CleanupStatus.Text = $"{p.Processed:N0} / {p.Total:N0} traités · {p.Recycled:N0} déplacés · {p.Skipped:N0} ignorés…");
-            var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected, location, token, progress));
+            var report = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.RecycleWithReport(selected, location, token, progress));
             ReleaseCleanupInventory();
-            CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({FormatCleanupBytes(result.LogicalBytes)} logiques) · {result.Skipped:N0} ignorés. Résultats du disque à actualiser.";
+            var result = report.Result;
+            CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({FormatCleanupBytes(result.LogicalBytes)} logiques) · {result.Skipped:N0} ignorés" +
+                (report.Cancelled ? " · Annulé : les déplacements déjà effectués sont conservés." : " · Résultats du disque à actualiser.");
+            if (report.Errors.Count > 0)
+                MessageBox.Show(this, string.Join(Environment.NewLine, report.Errors.Take(20)) +
+                    (report.Errors.Count > 20 ? "\n… (extrait des 100 premières anomalies)." : ""),
+                    "Fichiers ignorés — détails", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException)
         {
