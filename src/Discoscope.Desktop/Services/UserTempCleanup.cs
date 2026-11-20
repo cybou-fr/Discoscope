@@ -25,7 +25,7 @@ public static class UserTempCleanup
         }
         return false;
     }
-    public static IReadOnlyList<Candidate> Preview(Location location = Location.User)
+    public static IReadOnlyList<Candidate> Preview(Location location = Location.User, CancellationToken token = default)
     {
         var root = GetRoot(location);
         var found = new List<Candidate>();
@@ -34,11 +34,13 @@ public static class UserTempCleanup
         stack.Push(root);
         while (stack.Count > 0 && found.Count < 500)
         {
+            token.ThrowIfCancellationRequested();
             var directory = stack.Pop();
             try
             {
                 foreach (var path in Directory.EnumerateFileSystemEntries(directory))
                 {
+                    token.ThrowIfCancellationRequested();
                     if (found.Count >= 500) break;
                     try
                     {
