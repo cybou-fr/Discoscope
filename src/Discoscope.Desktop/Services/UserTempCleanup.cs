@@ -5,6 +5,7 @@ public static class UserTempCleanup
 {
     public sealed record Candidate(string Path, long Bytes, DateTime ModifiedUtc);
     public sealed record Result(int Recycled, int Skipped, long LogicalBytes);
+    public sealed record RecycleProgress(int Processed, int Total, int Recycled, int Skipped, long LogicalBytes);
     public sealed record Progress(long Visited, int Eligible, long LogicalBytes);
     public enum Location { User, Windows }
     public const int PreviewLimit = 1000;
@@ -138,10 +139,10 @@ public static class UserTempCleanup
         return result;
     }
 
-    public static Result Recycle(IReadOnlyList<Candidate> candidates, Location location = Location.User, CancellationToken token = default)
+    public static Result Recycle(IReadOnlyList<Candidate> candidates, Location location = Location.User, CancellationToken token = default, IProgress<RecycleProgress>? progress = null)
     {
         var root = GetRoot(location);
-        int recycled = 0, skipped = 0;
+        int recycled = 0, skipped = 0, processed = 0;
         long bytes = 0;
         foreach (var item in candidates)
         {
@@ -155,11 +156,17 @@ public static class UserTempCleanup
                     info.LastWriteTimeUtc > DateTime.UtcNow.AddDays(-7)) { skipped++; continue; }
                 FileSystem.DeleteFile(item.Path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
                 recycled++;
-                bytes += item.Bytes;
+                bytes = bytes > long.MaxValue - item.Bytes ? long.MaxValue : bytes + item.Bytes;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
                 skipped++;
+            }
+            finally
+            {
+                processed++;
+                if (processed % 10 == 0 || processed == candidates.Count)
+                    progress?.Report(new RecycleProgress(processed, candidates.Count, recycled, skipped, bytes));
             }
         }
         return new Result(recycled, skipped, bytes);

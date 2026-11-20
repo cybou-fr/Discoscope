@@ -14,6 +14,12 @@ namespace Discoscope.Desktop;
 public partial class MainWindow : Window
 {
     private bool _cleanupBusy;
+    protected override void OnClosed(EventArgs e)
+    {
+        _cleanupCancellation?.Cancel();
+        _cleanupInventory?.Dispose();
+        base.OnClosed(e);
+    }
     private Discoscope.Desktop.Services.UserTempCleanup.Inventory? _cleanupInventory;
     private int _cleanupPage;
 
@@ -199,7 +205,9 @@ public partial class MainWindow : Window
         try
         {
             var token = _cleanupCancellation!.Token;
-            var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected, location, token));
+            var progress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.RecycleProgress>(p =>
+                CleanupStatus.Text = $"{p.Processed:N0} / {p.Total:N0} traités · {p.Recycled:N0} déplacés · {p.Skipped:N0} ignorés…");
+            var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected, location, token, progress));
             ReleaseCleanupInventory();
             CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({FormatCleanupBytes(result.LogicalBytes)} logiques) · {result.Skipped:N0} ignorés. Résultats du disque à actualiser.";
         }
