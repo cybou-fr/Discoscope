@@ -77,21 +77,31 @@ public sealed class ExplorerRows(ScanDirectory directory, int[]? order = null) :
         set => throw new NotSupportedException();
     }
 
-    public ExplorerRows Sort(string property, ListSortDirection direction)
+    public ExplorerRows Sort(string property, ListSortDirection direction, CancellationToken token = default)
     {
         var indices = Enumerable.Range(0, Count).ToArray();
-        Array.Sort(indices, (left, right) =>
+        int comparisons = 0;
+        try
         {
-            int comparison = property switch
+            Array.Sort(indices, (left, right) =>
             {
-                nameof(ExplorerRow.Bytes) => Bytes(left).CompareTo(Bytes(right)),
-                nameof(ExplorerRow.Type) => CompareTypes(left, right),
-                _ => StringComparer.CurrentCultureIgnoreCase.Compare(Name(left), Name(right))
-            };
-            if (comparison == 0)
-                comparison = left.CompareTo(right);
-            return direction == ListSortDirection.Ascending ? comparison : -Math.Sign(comparison);
-        });
+                if ((++comparisons & 1023) == 0) token.ThrowIfCancellationRequested();
+                int comparison = property switch
+                {
+                    nameof(ExplorerRow.Bytes) => Bytes(left).CompareTo(Bytes(right)),
+                    nameof(ExplorerRow.Type) => CompareTypes(left, right),
+                    _ => StringComparer.CurrentCultureIgnoreCase.Compare(Name(left), Name(right))
+                };
+                if (comparison == 0)
+                    comparison = left.CompareTo(right);
+                return direction == ListSortDirection.Ascending ? comparison : -Math.Sign(comparison);
+            });
+        }
+        catch (InvalidOperationException ex) when (ex.InnerException is OperationCanceledException && token.IsCancellationRequested)
+        {
+            token.ThrowIfCancellationRequested();
+        }
+        token.ThrowIfCancellationRequested();
         return new ExplorerRows(directory, indices);
     }
 

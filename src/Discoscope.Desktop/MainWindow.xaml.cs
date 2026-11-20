@@ -89,6 +89,11 @@ public partial class MainWindow : Window
         var row = ExplorerTable.SelectedItem as ExplorerRow;
         var path = row?.Directory?.Path ?? row?.Parent.Path ?? Model.CurrentDirectory?.Path;
         if (path is null) return;
+        if (!Directory.Exists(path))
+        {
+            MessageBox.Show(this, "Ce dossier n’est plus accessible.", "Discoscope");
+            return;
+        }
         try
         {
             using var process = Process.Start(new ProcessStartInfo

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Enumeration;
 using Discoscope.Core.Models;
 
@@ -9,6 +10,7 @@ namespace Discoscope.Core.Services;
 /// </summary>
 public sealed class DiskScanner : IDiskScanner
 {
+    private static readonly ActivitySource Telemetry = new("Discoscope.Core.Scan");
     public Task<ScanResult> ScanAsync(
         string root, IProgress<ScanProgress>? progress, CancellationToken cancellationToken) =>
         ScanAsync(root, progress, retainFiles: true, cancellationToken);
@@ -27,12 +29,11 @@ public sealed class DiskScanner : IDiskScanner
         if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
             throw new IOException("Le dossier sélectionné est un lien ou un point de réanalyse.");
         var rootDirectory = new ScanDirectory(root, null);
-        var stack = new Stack<ScanDirectory>();
-        var visited = new List<ScanDirectory>();
+        var stack = new Stack<(ScanDirectory Directory, bool Visited)>();
         var issues = new List<ScanIssue>();
         const int maxLargestFiles = 200;
         var largestFiles = new PriorityQueue<LargeFileEntry, long>();
-        stack.Push(rootDirectory);
+        stack.Push((rootDirectory, false));
 
         long fileCount = 0, directoryCount = 0, bytes = 0;
         var lastReport = Environment.TickCount64;
@@ -42,24 +43,42 @@ public sealed class DiskScanner : IDiskScanner
             IgnoreInaccessible = false
         };
 
+        using var activity = Telemetry.StartActivity("scan.filesystem");
+        long enumerationTicks = 0, aggregationTicks = 0;
+        var started = Stopwatch.GetTimestamp();
         while (stack.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var directory = stack.Pop();
+            var (directory, visited) = stack.Pop();
+            if (visited)
+            {
+                var aggregationStarted = activity is null ? 0 : Stopwatch.GetTimestamp();
+                var parent = directory.Parent!;
+                parent.Bytes += directory.Bytes;
+                parent.FileCount += directory.FileCount;
+                parent.DirectoryCount += directory.DirectoryCount + 1;
+                parent.SkippedCount += directory.SkippedCount;
+                if (activity is not null) aggregationTicks += Stopwatch.GetTimestamp() - aggregationStarted;
+                continue;
+            }
+
             var current = directory.Path;
-            visited.Add(directory);
-            var directories = new List<ScanDirectory>();
-            List<ScanFile>? files = retainFiles ? [] : null;
+            List<ScanDirectory>? directories = null;
+            List<ScanFile>? files = null;
+            int priorIssues = issues.Count;
             directoryCount++;
             long localBytes = 0, localFiles = 0;
 
             try
             {
-                var children = new FileSystemEnumerable<(string Name, FileAttributes Attributes, long Length)>(
+                var enumerationStarted = activity is null ? 0 : Stopwatch.GetTimestamp();
+                using var children = new FileSystemEnumerable<(string Name, FileAttributes Attributes, long Length)>(
                     current, (ref FileSystemEntry entry) => (entry.FileName.ToString(), entry.Attributes, entry.Length),
-                    enumerationOptions);
-                foreach (var (name, attributes, length) in children)
+                    enumerationOptions).GetEnumerator();
+                if (activity is not null) enumerationTicks += Stopwatch.GetTimestamp() - enumerationStarted;
+                while (MoveNext(children))
                 {
+                    var (name, attributes, length) = children.Current;
                     cancellationToken.ThrowIfCancellationRequested();
                     if ((attributes & FileAttributes.ReparsePoint) != 0)
                     {
@@ -69,13 +88,12 @@ public sealed class DiskScanner : IDiskScanner
 
                     if ((attributes & FileAttributes.Directory) != 0)
                     {
-                        var child = new ScanDirectory(Path.Join(current, name), directory);
-                        directories.Add(child);
-                        stack.Push(child);
+                        var child = new ScanDirectory(Path.Join(current, name), name, directory);
+                        (directories ??= []).Add(child);
                     }
                     else
                     {
-                        files?.Add(new ScanFile(name, length));
+                        if (retainFiles) (files ??= []).Add(new ScanFile(name, length));
                         if (largestFiles.Count < maxLargestFiles)
                             largestFiles.Enqueue(new LargeFileEntry(Path.Join(current, name), length), length);
                         else if (largestFiles.TryPeek(out _, out long smallest) && length > smallest)
@@ -87,49 +105,52 @@ public sealed class DiskScanner : IDiskScanner
                     }
                     ReportProgress(current);
                 }
+                directory.EnumerationSucceeded = true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
             {
                 issues.Add(new ScanIssue(current, ex.Message));
             }
 
-            directory.Directories = directories.ToArray();
+            directory.Directories = directories?.ToArray() ?? [];
             directory.Files = files?.ToArray() ?? [];
             directory.DirectBytes = directory.Bytes = localBytes;
             directory.DirectFileCount = directory.FileCount = localFiles;
+            directory.SkippedCount = issues.Count - priorIssues;
+            if (directory.Parent is not null) stack.Push((directory, true));
+            foreach (var child in directory.Directories)
+                stack.Push((child, false));
             ReportProgress(current);
         }
 
-        // Each parent was visited before its children. Reverse order aggregates in linear time.
-        for (int i = visited.Count - 1; i > 0; i--)
+        if (activity is not null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var directory = visited[i];
-            var parent = directory.Parent!;
-            parent.Bytes += directory.Bytes;
-            parent.FileCount += directory.FileCount;
-            parent.DirectoryCount += directory.DirectoryCount + 1;
+            var elapsedTicks = Stopwatch.GetTimestamp() - started;
+            activity.SetTag("enumeration.ms", Stopwatch.GetElapsedTime(0, enumerationTicks).TotalMilliseconds);
+            activity.SetTag("aggregation.ms", Stopwatch.GetElapsedTime(0, aggregationTicks).TotalMilliseconds);
+            activity.SetTag("hierarchy_and_bookkeeping.ms",
+                Stopwatch.GetElapsedTime(0, elapsedTicks - enumerationTicks - aggregationTicks).TotalMilliseconds);
         }
-
-        var entries = visited.Skip(1)
-            .Select(directory => new ScanEntry(directory.Path, directory.Bytes, directory.FileCount, directory.DirectoryCount)
-            {
-                DirectBytes = directory.DirectBytes,
-                DirectFileCount = directory.DirectFileCount
-            })
-            .OrderByDescending(entry => entry.Bytes)
-            .ToArray();
 
         cancellationToken.ThrowIfCancellationRequested();
         progress?.Report(new ScanProgress(fileCount, directoryCount, bytes, root));
         cancellationToken.ThrowIfCancellationRequested();
-        return new ScanResult(root, bytes, fileCount, directoryCount, entries, issues, DateTimeOffset.Now)
+        return new ScanResult(root, bytes, fileCount, directoryCount, retainFiles ? new DirectoryEntries(rootDirectory) : [], issues, DateTimeOffset.Now)
         {
             LargestFiles = largestFiles.UnorderedItems.Select(x => x.Element).OrderByDescending(x => x.Bytes).ToArray(),
             Hierarchy = retainFiles ? rootDirectory : null,
             RootDirectBytes = rootDirectory.DirectBytes,
             RootDirectFileCount = rootDirectory.DirectFileCount
         };
+
+        bool MoveNext(IEnumerator<(string Name, FileAttributes Attributes, long Length)> children)
+        {
+            if (activity is null) return children.MoveNext();
+
+            var stamp = Stopwatch.GetTimestamp();
+            try { return children.MoveNext(); }
+            finally { enumerationTicks += Stopwatch.GetTimestamp() - stamp; }
+        }
 
         void ReportProgress(string current)
         {

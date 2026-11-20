@@ -126,6 +126,11 @@ public sealed class DiskScannerTests
             Assert.Equal(7, result.TotalBytes);
             Assert.Contains(result.Issues, issue => issue.Path == blocked.FullName);
             Assert.Empty(Assert.Single(result.Hierarchy!.Directories).Files);
+            var locations = await TemporaryFilesInspector.InspectLocationsAsync(
+                [("Blocked", blocked.FullName)], result.Hierarchy, CancellationToken.None);
+            var location = Assert.Single(locations);
+            Assert.False(location.Accessible);
+            Assert.Equal(1, location.SkippedCount);
         }
         finally
         {
@@ -167,6 +172,61 @@ public sealed class DiskScannerTests
         {
             if (Directory.Exists(junction)) Directory.Delete(junction);
             root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Scan_LimitedOverviewMatchesLegacyOrderingAndCanBeCancelled()
+    {
+        var root = Directory.CreateTempSubdirectory("DiscoscopeTests-");
+        try
+        {
+            foreach (var (name, size) in new[] { ("one", 4), ("two", 4), ("three", 8), ("empty", 0) })
+            {
+                var child = root.CreateSubdirectory(name);
+                File.WriteAllBytes(Path.Combine(child.FullName, "file.bin"), new byte[size]);
+            }
+
+            var result = await new DiskScanner().ScanAsync(root.FullName, null, CancellationToken.None);
+            Assert.Equal(4, result.Entries.Count);
+            Assert.Equal(4, result.Hierarchy!.Directories.Count);
+            Assert.Equal(result.Entries.Take(2), result.GetLargestDirectories(2));
+            Assert.Equal(result.Entries, result.GetLargestDirectories(10));
+            Assert.Equal(0, Assert.Single(result.Hierarchy.Directories.Single(d => d.Name == "empty").Files).Bytes);
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+            Assert.Throws<OperationCanceledException>(() => result.GetLargestDirectories(2, cancellation.Token));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task TemporaryInventory_ReusesCoveredSnapshotAndScansUncoveredLocations()
+    {
+        var root = Directory.CreateTempSubdirectory("DiscoscopeTests-");
+        var outside = Directory.CreateTempSubdirectory("DiscoscopeTests-");
+        try
+        {
+            var temporary = root.CreateSubdirectory("TEMP");
+            File.WriteAllText(Path.Combine(temporary.FullName, "before.txt"), "abc");
+            File.WriteAllText(Path.Combine(outside.FullName, "outside.txt"), "12345");
+            var scan = await new DiskScanner().ScanAsync(root.FullName, null, CancellationToken.None);
+            File.WriteAllText(Path.Combine(temporary.FullName, "later.txt"), "later");
+            var results = await TemporaryFilesInspector.InspectLocationsAsync(
+                [("Covered", temporary.FullName + Path.DirectorySeparatorChar), ("Uncovered", outside.FullName)],
+                scan.Hierarchy, CancellationToken.None);
+
+            Assert.Collection(results,
+                covered => { Assert.Equal(3, covered.LogicalBytes); Assert.Equal(1, covered.FileCount); },
+                uncovered => { Assert.Equal(5, uncovered.LogicalBytes); Assert.Equal(1, uncovered.FileCount); });
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+            outside.Delete(recursive: true);
         }
     }
 

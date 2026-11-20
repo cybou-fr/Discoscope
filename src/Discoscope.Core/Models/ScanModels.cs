@@ -21,4 +21,26 @@ public sealed record ScanResult(
     public long RootDirectBytes { get; init; }
     public long RootDirectFileCount { get; init; }
     public ScanDirectory? Hierarchy { get; init; }
+
+    public IReadOnlyList<ScanEntry> GetLargestDirectories(int count, CancellationToken token = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        token.ThrowIfCancellationRequested();
+        if (count == 0) return [];
+        if (Hierarchy is null) return Entries.Take(count).ToArray();
+
+        var largest = new PriorityQueue<ScanDirectory, (long Bytes, long Order)>();
+        long order = 0;
+        foreach (var directory in DirectoryEntries.Traverse(Hierarchy))
+        {
+            token.ThrowIfCancellationRequested();
+            var priority = (directory.Bytes, --order);
+            if (largest.Count < count)
+                largest.Enqueue(directory, priority);
+            else if (largest.TryPeek(out _, out var smallest) && priority.CompareTo(smallest) > 0)
+                largest.DequeueEnqueue(directory, priority);
+        }
+        return largest.UnorderedItems.OrderByDescending(item => item.Priority)
+            .Select(item => DirectoryEntries.ToEntry(item.Element)).ToArray();
+    }
 }

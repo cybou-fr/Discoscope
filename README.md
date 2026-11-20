@@ -38,6 +38,7 @@ Les tailles affichées sont les **tailles logiques des fichiers accessibles**, e
 Modifications exclusivement sur `main`. Pas de CI/CD ni de GitHub Actions. Compilation et tests locaux sur Windows.
 
 Le diagnostic des dossiers temporaires utilisateur et Windows est en lecture seule. La taille détectée ne correspond pas à une quantité supprimable garantie.
+Lorsque le lecteur analysé couvre ces dossiers, le diagnostic réutilise le même instantané. Les emplacements absents de l’instantané sont parcourus séparément.
 
 ### Diagnostic Windows
 
@@ -72,6 +73,8 @@ La fenêtre comprend **Vue d’ensemble**, **Explorateur**, **Fichiers volumineu
 - `Discoscope.Core` : modèles et scanner de dossiers, indépendants de WPF.
 - `Discoscope.Desktop` : application WPF, XAML, MVVM, commandes et état.
 - `Discoscope.Core.Tests` : tests de parcours et d'agrégation.
+
+Pour mesurer une analyse, un `ActivityListener` peut écouter `Discoscope.Core.Scan` et `Discoscope.Desktop.Scan`. Les activités distinguent l’énumération, la construction de l’arborescence, l’agrégation, l’inventaire temporaire et la préparation et la publication des résultats.
 
 ## Licence
 
