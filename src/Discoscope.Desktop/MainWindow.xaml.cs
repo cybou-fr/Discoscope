@@ -14,6 +14,38 @@ namespace Discoscope.Desktop;
 public partial class MainWindow : Window
 {
     private bool _cleanupBusy;
+    private Discoscope.Desktop.Services.UserTempCleanup.Inventory? _cleanupInventory;
+    private int _cleanupPage;
+
+    private void ReleaseCleanupInventory()
+    {
+        CleanupFiles.ItemsSource = null;
+        _cleanupInventory?.Dispose();
+        _cleanupInventory = null;
+        _cleanupPage = 0;
+        UpdateCleanupPaging();
+    }
+
+    private void UpdateCleanupPaging()
+    {
+        if (CleanupPreviousPage is null || CleanupNextPage is null || CleanupPageStatus is null) return;
+        var pages = _cleanupInventory?.PageCount ?? 0;
+        CleanupPreviousPage.IsEnabled = !_cleanupBusy && _cleanupPage > 0;
+        CleanupNextPage.IsEnabled = !_cleanupBusy && _cleanupPage + 1 < pages;
+        CleanupPageStatus.Text = pages == 0 ? "Aucune page" : $"Page {_cleanupPage + 1:N0} / {pages:N0}";
+    }
+
+    private void ShowCleanupPage(int page)
+    {
+        if (_cleanupInventory is null || page < 0 || page >= _cleanupInventory.PageCount) return;
+        _cleanupPage = page;
+        CleanupFiles.ItemsSource = _cleanupInventory.ReadPage(page);
+        UpdateCleanupPaging();
+    }
+
+    private void PreviousCleanupPage(object sender, RoutedEventArgs e) { if (!_cleanupBusy) ShowCleanupPage(_cleanupPage - 1); }
+    private void NextCleanupPage(object sender, RoutedEventArgs e) { if (!_cleanupBusy) ShowCleanupPage(_cleanupPage + 1); }
+
     private sealed record CleanupCategoryRow(string Name, int Count, string Size, Discoscope.Desktop.Services.UserTempCleanup.Location Location);
 
     private void CleanupCategorySelected(object sender, SelectionChangedEventArgs e)
@@ -31,7 +63,7 @@ public partial class MainWindow : Window
     private void CleanupLocationChanged(object sender, SelectionChangedEventArgs e)
     {
         if (CleanupFiles is null || CleanupStatus is null) return;
-        CleanupFiles.ItemsSource = null;
+        ReleaseCleanupInventory();
         CleanupStatus.Text = "Recherchez les fichiers de cet emplacement.";
         if (CleanupPreviewButton is not null && CleanupRecycleButton is not null && CleanupSelectAllButton is not null && CleanupOverviewButton is not null && CleanupCancelButton is not null)
             UpdateCleanupSelection();
@@ -54,6 +86,7 @@ public partial class MainWindow : Window
         CleanupLocation.IsEnabled = !_cleanupBusy;
         CleanupRecycleButton.IsEnabled = !_cleanupBusy && CleanupFiles.SelectedItems.Count > 0;
         CleanupSelectAllButton.IsEnabled = !_cleanupBusy && CleanupFiles.Items.Count > 0;
+        UpdateCleanupPaging();
         if (_cleanupBusy) return;
         var count = CleanupFiles.SelectedItems.Count;
         if (count > 0)
@@ -122,7 +155,7 @@ public partial class MainWindow : Window
         _cleanupBusy = true;
         _cleanupCancellation = new CancellationTokenSource();
         UpdateCleanupSelection();
-        CleanupFiles.ItemsSource = null;
+        ReleaseCleanupInventory();
         CleanupStatus.Text = "Recherche en cours…";
         try
         {
@@ -130,12 +163,10 @@ public partial class MainWindow : Window
             var token = _cleanupCancellation!.Token;
             var progress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.Progress>(p =>
                 CleanupStatus.Text = $"{p.Visited:N0} entrées examinées · {p.Eligible:N0} fichiers · {FormatCleanupBytes(p.LogicalBytes)}…");
-            var candidates = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(location, token, progress));
-            CleanupFiles.ItemsSource = candidates;
-            long total = 0;
-            foreach (var candidate in candidates)
-                total = total > long.MaxValue - candidate.Bytes ? long.MaxValue : total + candidate.Bytes;
-            CleanupStatus.Text = $"{candidates.Count:N0} fichiers affichés · {FormatCleanupBytes(total)} logiques. Aperçu limité à {Discoscope.Desktop.Services.UserTempCleanup.PreviewLimit:N0} fichiers ; l’évaluation complète est disponible ci-dessous.";
+            var inventory = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.CreateInventory(location, token, progress));
+            _cleanupInventory = inventory;
+            ShowCleanupPage(0);
+            CleanupStatus.Text = $"{inventory.Count:N0} fichiers · {FormatCleanupBytes(inventory.LogicalBytes)} (taille logique). Sélection par page.";
         }
         catch (OperationCanceledException)
         {
@@ -169,13 +200,12 @@ public partial class MainWindow : Window
         {
             var token = _cleanupCancellation!.Token;
             var result = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Recycle(selected, location, token));
-            var remaining = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(location, token));
-            CleanupFiles.ItemsSource = remaining;
+            ReleaseCleanupInventory();
             CleanupStatus.Text = $"{result.Recycled:N0} fichiers déplacés ({FormatCleanupBytes(result.LogicalBytes)} logiques) · {result.Skipped:N0} ignorés. Résultats du disque à actualiser.";
         }
         catch (OperationCanceledException)
         {
-            CleanupFiles.ItemsSource = null;
+            ReleaseCleanupInventory();
             CleanupStatus.Text = "Opération annulée. Certains fichiers peuvent déjà avoir été déplacés. Relancez la recherche.";
         }
         catch (Exception ex)

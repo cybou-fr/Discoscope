@@ -229,14 +229,14 @@
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                         <TextBlock Text="Nettoyage des fichiers temporaires" FontSize="17" FontWeight="SemiBold"/>
                         <TextBlock Grid.Row="1" Margin="0,8,0,12" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
-                                   Text="Choisissez un emplacement. Seuls les fichiers non modifiés depuis 7 jours sont proposés. La liste détaillée conserve au maximum 1 000 fichiers en mémoire ; l’évaluation des catégories couvre tous les fichiers accessibles. Déplacement vers la Corbeille après confirmation."/>
+                                   Text="Choisissez un emplacement. Seuls les fichiers non modifiés depuis 7 jours sont proposés. Les fichiers sont indexés temporairement sur disque et affichés par pages de 1 000 ; l’évaluation des catégories couvre tous les fichiers accessibles. Déplacement vers la Corbeille après confirmation."/>
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
                             <ComboBox x:Name="CleanupLocation" Width="185" SelectedIndex="0" SelectionChanged="CleanupLocationChanged" VerticalAlignment="Center" Margin="0,0,10,0">
                                 <ComboBoxItem Content="Temporaires utilisateur"/>
                                 <ComboBoxItem Content="Temporaires Windows"/>
                             </ComboBox>
                             <Button x:Name="CleanupPreviewButton" Content="Rechercher" Click="PreviewUserTempCleanup" Padding="12,6"/>
-                            <Button x:Name="CleanupSelectAllButton" Content="Tout sélectionner" Click="SelectAllCleanupFiles" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
+                            <Button x:Name="CleanupSelectAllButton" Content="Sélectionner la page" Click="SelectAllCleanupFiles" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <Button x:Name="CleanupCancelButton" Content="Annuler" Click="CancelCleanup" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <Button x:Name="CleanupRecycleButton" Content="Déplacer la sélection vers la Corbeille" Click="RecycleUserTempCleanup" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <TextBlock x:Name="CleanupStatus" Text="Aucun aperçu" Margin="14,0,0,0" VerticalAlignment="Center"/>
@@ -257,7 +257,14 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                         </StackPanel>
-                        <DataGrid x:Name="CleanupFiles" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True"
+                        <Grid Grid.Row="4">
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button x:Name="CleanupPreviousPage" Content="Précédent" Click="PreviousCleanupPage" IsEnabled="False" Padding="12,5"/>
+                                <TextBlock x:Name="CleanupPageStatus" Text="Aucune page" Margin="12,0" VerticalAlignment="Center"/>
+                                <Button x:Name="CleanupNextPage" Content="Suivant" Click="NextCleanupPage" IsEnabled="False" Padding="12,5"/>
+                            </StackPanel>
+                        <DataGrid x:Name="CleanupFiles" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True"
                                   SelectionMode="Extended" SelectionChanged="CleanupSelectionChanged" CanUserAddRows="False" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                   Background="#1A2230" Foreground="White" RowBackground="#1A2230"
                                   AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
@@ -267,6 +274,7 @@
                                 <DataGridTextColumn Header="Modification UTC" Binding="{Binding ModifiedUtc}" Width="185"/>
                             </DataGrid.Columns>
                         </DataGrid>
+                        </Grid>
                     </Grid>
                 </TabItem>
                 <TabItem Header="Fichiers volumineux">

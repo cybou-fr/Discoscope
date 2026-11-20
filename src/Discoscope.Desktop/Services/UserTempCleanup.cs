@@ -26,6 +26,61 @@ public static class UserTempCleanup
         }
         return false;
     }
+    // Disk-backed inventory: only one page of file metadata is retained in UI memory.
+    public sealed class Inventory : IDisposable
+    {
+        private readonly string _path;
+        private readonly List<long> _offsets;
+        internal Inventory(string path, List<long> offsets, long count, long bytes)
+        { _path = path; _offsets = offsets; Count = count; LogicalBytes = bytes; }
+        public long Count { get; }
+        public long LogicalBytes { get; }
+        public int PageCount => _offsets.Count;
+        public IReadOnlyList<Candidate> ReadPage(int index)
+        {
+            if (index < 0 || index >= _offsets.Count) return Array.Empty<Candidate>();
+            using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var reader = new BinaryReader(stream);
+            stream.Position = _offsets[index];
+            var items = new List<Candidate>(PreviewLimit);
+            for (int i = 0; i < PreviewLimit && stream.Position < stream.Length; i++)
+                items.Add(new Candidate(reader.ReadString(), reader.ReadInt64(), DateTime.FromBinary(reader.ReadInt64())));
+            return items;
+        }
+        public void Dispose()
+        {
+            try { File.Delete(_path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    public static Inventory CreateInventory(Location location = Location.User, CancellationToken token = default, IProgress<Progress>? progress = null)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "discoscope-inventory-" + Guid.NewGuid().ToString("N") + ".bin");
+        var offsets = new List<long>();
+        long count = 0;
+        try
+        {
+            using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new BinaryWriter(stream))
+            {
+                var summary = Scan(location, token, progress, item =>
+                {
+                    if (count % PreviewLimit == 0) offsets.Add(stream.Position);
+                    writer.Write(item.Path);
+                    writer.Write(item.Bytes);
+                    writer.Write(item.ModifiedUtc.ToBinary());
+                    count++;
+                });
+                return new Inventory(path, offsets, count, summary.LogicalBytes);
+            }
+        }
+        catch
+        {
+            try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            throw;
+        }
+    }
+
     public static IReadOnlyList<Candidate> Preview(Location location = Location.User, CancellationToken token = default, IProgress<Progress>? progress = null)
     {
         var found = new List<Candidate>();
