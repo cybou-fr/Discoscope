@@ -212,16 +212,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         FilesLabel = SizeLabel = IssuesLabel = "…";
         Status = "Analyse en cours…";
+        var activeScan = _scanCancellation;
         var progress = new Progress<ScanProgress>(p =>
         {
+            if (!_isScanning || !ReferenceEquals(_scanCancellation, activeScan)) return;
             FilesLabel = p.Files.ToString("N0");
             SizeLabel = SizeFormatter.Format(p.Bytes);
             Status = $"Analyse : {p.CurrentPath}";
         });
+        /* old progress */
+        /*
+        {
+            FilesLabel = p.Files.ToString("N0");
+            SizeLabel = SizeFormatter.Format(p.Bytes);
+            Status = $"Analyse : {p.CurrentPath}";
+        }); */
 
         try
         {
             var result = await _scanner.ScanAsync(SelectedDrive, progress, _scanCancellation.Token);
+            _isScanning = false; // Ignore queued Progress<T> callbacks after completion.
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
             IssuesLabel = result.Issues.Count.ToString("N0");

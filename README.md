@@ -54,6 +54,10 @@ Une carte proportionnelle présente jusqu’à 24 sous-dossiers par niveau. Cliq
 
 Pendant le scan, Discoscope conserve en mémoire les 200 plus grands fichiers accessibles grâce à une file de priorité bornée. L’interface affiche leur chemin, extension et taille logique. Les fichiers non accessibles et les points de réanalyse ne sont pas inclus. Cette liste est un diagnostic : aucune suppression automatique.
 
+### Interface
+
+La fenêtre est organisée en quatre vues : **Vue d'ensemble**, **Explorateur**, **Fichiers volumineux** et **Système**. Les résultats du scan sont partagés entre les vues ; changer d’onglet ne relance pas l’analyse. Les diagnostics DISM/VSS sont déclenchés séparément.
+
 ## Architecture
 
 - `Discoscope.Core` : modèles et scanner de dossiers, indépendants de WPF.
