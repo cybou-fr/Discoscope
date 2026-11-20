@@ -33,14 +33,16 @@ public static class TreemapLayout
                 groupedBytes += item.Bytes;
             else if (retained.Count < itemLimit)
                 retained.Enqueue(item, item.Bytes);
-            else
+            else if (retained.TryPeek(out _, out long smallest) && item.Bytes > smallest)
                 groupedBytes += retained.EnqueueDequeue(item, item.Bytes).Bytes;
+            else
+                groupedBytes += item.Bytes;
         }
     }
 
     public static IReadOnlyList<TreemapTile> Arrange(IReadOnlyList<TreemapItem> items, double width, double height)
     {
-        if (items.Count == 0 || width <= 0 || height <= 0)
+        if (items.Count == 0 || width <= 0 || height <= 0 || items.Sum(item => item.Bytes) <= 0)
             return [];
 
         var tiles = new TreemapTile[items.Count];

@@ -42,6 +42,33 @@ public sealed class TreemapLayoutTests
     }
 
     [Fact]
+    public void Summarize_RetainsLargestItemsRegardlessOfEnumerationOrder()
+    {
+        var directory = new ScanDirectory("root", null)
+        {
+            Bytes = 100_000,
+            Files = Enumerable.Range(1, 100)
+                .Select(i => new ScanFile($"file-{i}", i * 20L)).ToArray()
+        };
+        directory.Bytes = directory.Files.Sum(f => f.Bytes);
+
+        var items = TreemapLayout.Summarize(directory);
+        Assert.Equal(directory.Bytes, items.Sum(item => item.Bytes));
+        Assert.Equal(64, items.Count);
+        Assert.Equal(63, items.Count(item => !item.IsGroup));
+        Assert.DoesNotContain(items, item => item.Name == "file-1");
+        Assert.Contains(items, item => item.Name == "file-100");
+        Assert.Equal(20L * Enumerable.Range(1, 37).Sum(), Assert.Single(items, item => item.IsGroup).Bytes);
+    }
+
+    [Fact]
+    public void Arrange_ZeroByteItemsNeverProduceInvalidGeometry()
+    {
+        var tiles = TreemapLayout.Arrange([new TreemapItem("empty", 0)], 800, 400);
+        Assert.Empty(tiles);
+    }
+
+    [Fact]
     public void Summarize_BoundsTileCountAndHandlesZeroBytes()
     {
         var directory = new ScanDirectory("root", null) { Files = [new("empty", 0)] };
