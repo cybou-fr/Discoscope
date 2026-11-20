@@ -13,8 +13,12 @@ namespace Discoscope.Desktop;
 
 public partial class MainWindow : Window
 {
+    private bool _cleanupBusy;
     private async void PreviewUserTempCleanup(object sender, RoutedEventArgs e)
     {
+        if (_cleanupBusy) return;
+        _cleanupBusy = true;
+        CleanupFiles.ItemsSource = null;
         CleanupStatus.Text = "Recherche en cours…";
         try
         {
@@ -27,16 +31,19 @@ public partial class MainWindow : Window
             CleanupStatus.Text = "Recherche impossible.";
             MessageBox.Show(this, ex.Message, "Discoscope");
         }
+        finally { _cleanupBusy = false; }
     }
 
     private async void RecycleUserTempCleanup(object sender, RoutedEventArgs e)
     {
+        if (_cleanupBusy) return;
         var selected = CleanupFiles.SelectedItems.Cast<Discoscope.Desktop.Services.UserTempCleanup.Candidate>().ToArray();
         if (selected.Length == 0) return;
         var total = selected.Sum(file => file.Bytes);
         if (MessageBox.Show(this,
             $"Déplacer {selected.Length:N0} fichiers ({total:N0} octets logiques) vers la Corbeille ?",
             "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        _cleanupBusy = true;
         CleanupStatus.Text = "Déplacement vers la Corbeille…";
         try
         {
@@ -49,6 +56,7 @@ public partial class MainWindow : Window
             CleanupStatus.Text = "Nettoyage interrompu.";
             MessageBox.Show(this, ex.Message, "Discoscope");
         }
+        finally { _cleanupBusy = false; }
     }
 
     private MainViewModel Model => (MainViewModel)DataContext;

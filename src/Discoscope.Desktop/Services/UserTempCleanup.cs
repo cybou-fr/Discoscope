@@ -9,6 +9,7 @@ public static class UserTempCleanup
     private static bool Allowed(string path)
     {
         var root = Root;
+        if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0) return false;
         path = Path.GetFullPath(path);
         if (!path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) return false;
         var parent = Path.GetDirectoryName(path);
@@ -23,6 +24,7 @@ public static class UserTempCleanup
     public static IReadOnlyList<Candidate> Preview()
     {
         var found = new List<Candidate>();
+        if (!Directory.Exists(Root) || (File.GetAttributes(Root) & FileAttributes.ReparsePoint) != 0) return found;
         var stack = new Stack<string>();
         stack.Push(Root);
         while (stack.Count > 0 && found.Count < 500)
@@ -49,12 +51,13 @@ public static class UserTempCleanup
         }
         return found;
     }
-    public static Result Recycle(IReadOnlyList<Candidate> candidates)
+    public static Result Recycle(IReadOnlyList<Candidate> candidates, CancellationToken token = default)
     {
         int recycled = 0, skipped = 0;
         long bytes = 0;
         foreach (var item in candidates)
         {
+            token.ThrowIfCancellationRequested();
             try
             {
                 if (!Allowed(item.Path)) { skipped++; continue; }

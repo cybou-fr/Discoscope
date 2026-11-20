@@ -342,7 +342,7 @@
                 </ProgressBar.Style>
             </ProgressBar>
             <TextBlock Text="{Binding Status}" Foreground="{StaticResource AccentBrush}" TextTrimming="CharacterEllipsis"/>
-            <TextBlock Text="Les fichiers système protégés, les liens NTFS et les clichés VSS nécessitent une analyse distincte. Aucune suppression n'est effectuée."
+            <TextBlock Text="Les fichiers système protégés, les liens NTFS et les clichés VSS nécessitent une analyse distincte. Seuls les fichiers temporaires sélectionnés peuvent être déplacés vers la Corbeille après confirmation."
                        Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,7,0,0" TextWrapping="Wrap"/>
         </StackPanel>
     </Grid>
