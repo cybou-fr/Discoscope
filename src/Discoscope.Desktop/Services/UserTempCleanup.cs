@@ -49,6 +49,14 @@ public static class UserTempCleanup
                 items.Add(new Candidate(reader.ReadString(), reader.ReadInt64(), DateTime.FromBinary(reader.ReadInt64())));
             return items;
         }
+        public IEnumerable<IReadOnlyList<Candidate>> Pages(CancellationToken token = default)
+        {
+            for (int page = 0; page < PageCount; page++)
+            {
+                token.ThrowIfCancellationRequested();
+                yield return ReadPage(page);
+            }
+        }
         public void Dispose()
         {
             try { File.Delete(_path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -188,6 +196,39 @@ public static class UserTempCleanup
         }
         progress?.Report(new RecycleProgress(processed, candidates.Count, recycled, skipped, bytes));
         return new RecycleReport(new Result(recycled, skipped, bytes), cancelled, errors);
+    }
+
+    public static RecycleReport RecycleInventory(Inventory inventory, Location location,
+        CancellationToken token = default, IProgress<RecycleProgress>? progress = null)
+    {
+        long recycled = 0, skipped = 0, bytes = 0, processed = 0;
+        var errors = new List<string>();
+        bool cancelled = false;
+        foreach (var page in inventory.Pages())
+        {
+            if (token.IsCancellationRequested) { cancelled = true; break; }
+            var pageProgress = progress is null ? null : new Progress<RecycleProgress>(p =>
+                progress.Report(new RecycleProgress(
+                    (int)Math.Min(int.MaxValue, processed + p.Processed),
+                    (int)Math.Min(int.MaxValue, inventory.Count),
+                    (int)Math.Min(int.MaxValue, recycled + p.Recycled),
+                    (int)Math.Min(int.MaxValue, skipped + p.Skipped),
+                    bytes > long.MaxValue - p.LogicalBytes ? long.MaxValue : bytes + p.LogicalBytes)));
+            var report = RecycleWithReport(page, location, token, pageProgress);
+            recycled += report.Result.Recycled;
+            skipped += report.Result.Skipped;
+            processed += report.Result.Recycled + report.Result.Skipped;
+            bytes = bytes > long.MaxValue - report.Result.LogicalBytes ? long.MaxValue : bytes + report.Result.LogicalBytes;
+            foreach (var error in report.Errors)
+                if (errors.Count < 100) errors.Add(error);
+            progress?.Report(new RecycleProgress(
+                (int)Math.Min(int.MaxValue, processed), (int)Math.Min(int.MaxValue, inventory.Count),
+                (int)Math.Min(int.MaxValue, recycled), (int)Math.Min(int.MaxValue, skipped), bytes));
+            if (report.Cancelled) { cancelled = true; break; }
+        }
+        return new RecycleReport(
+            new Result((int)Math.Min(int.MaxValue, recycled), (int)Math.Min(int.MaxValue, skipped), bytes),
+            cancelled, errors);
     }
 
     public static Result Recycle(IReadOnlyList<Candidate> candidates, Location location = Location.User,

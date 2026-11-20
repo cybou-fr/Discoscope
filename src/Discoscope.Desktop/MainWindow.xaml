@@ -238,6 +238,7 @@
                             <Button x:Name="CleanupPreviewButton" Content="Rechercher" Click="PreviewUserTempCleanup" Padding="12,6"/>
                             <Button x:Name="CleanupSelectAllButton" Content="Sélectionner la page" Click="SelectAllCleanupFiles" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <Button x:Name="CleanupCancelButton" Content="Annuler" Click="CancelCleanup" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
+                            <Button x:Name="CleanupRecycleAllButton" Content="Nettoyer toutes les pages" Click="RecycleAllCleanup" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <Button x:Name="CleanupRecycleButton" Content="Déplacer la sélection vers la Corbeille" Click="RecycleUserTempCleanup" Padding="12,6" Margin="10,0,0,0" IsEnabled="False"/>
                             <TextBlock x:Name="CleanupStatus" Text="Aucun aperçu" Margin="14,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>

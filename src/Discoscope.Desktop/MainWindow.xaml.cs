@@ -91,6 +91,7 @@ public partial class MainWindow : Window
         CleanupCancelButton.IsEnabled = _cleanupBusy;
         CleanupLocation.IsEnabled = !_cleanupBusy;
         CleanupRecycleButton.IsEnabled = !_cleanupBusy && CleanupFiles.SelectedItems.Count > 0;
+        CleanupRecycleAllButton.IsEnabled = !_cleanupBusy && _cleanupInventory is { Count: > 0 };
         CleanupSelectAllButton.IsEnabled = !_cleanupBusy && CleanupFiles.Items.Count > 0;
         UpdateCleanupPaging();
         if (_cleanupBusy) return;
@@ -184,6 +185,45 @@ public partial class MainWindow : Window
             MessageBox.Show(this, ex.Message, "Discoscope");
         }
         finally { _cleanupCancellation?.Dispose(); _cleanupCancellation = null; _cleanupBusy = false; UpdateCleanupSelection(); }
+    }
+
+    private async void RecycleAllCleanup(object sender, RoutedEventArgs e)
+    {
+        if (_cleanupBusy || _cleanupInventory is not { Count: > 0 } inventory) return;
+        var location = SelectedCleanupLocation;
+        if (MessageBox.Show(this,
+            $"Déplacer TOUS les {inventory.Count:N0} fichiers indexés ({FormatCleanupBytes(inventory.LogicalBytes)} logiques) vers la Corbeille ?\\n\\nLes fichiers sont revérifiés individuellement. Cette opération peut être longue et l’espace libre n’augmentera pas avant de vider la Corbeille.",
+            "Confirmer le nettoyage complet", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        _cleanupBusy = true;
+        _cleanupCancellation = new CancellationTokenSource();
+        UpdateCleanupSelection();
+        CleanupStatus.Text = "Nettoyage par lots en cours…";
+        try
+        {
+            var token = _cleanupCancellation.Token;
+            var progress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.RecycleProgress>(p =>
+                CleanupStatus.Text = $"{p.Processed:N0} / {p.Total:N0} traités · {p.Recycled:N0} déplacés · {p.Skipped:N0} ignorés…");
+            var report = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.RecycleInventory(inventory, location, token, progress));
+            ReleaseCleanupInventory();
+            CleanupStatus.Text = $"{report.Result.Recycled:N0} déplacés · {report.Result.Skipped:N0} ignorés · {FormatCleanupBytes(report.Result.LogicalBytes)} logiques" +
+                (report.Cancelled ? " · Opération interrompue ; déplacements déjà effectués conservés." : " · Nettoyage terminé.");
+            if (report.Errors.Count > 0)
+                MessageBox.Show(this, string.Join(Environment.NewLine, report.Errors.Take(20)),
+                    "Fichiers ignorés — détails", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            ReleaseCleanupInventory();
+            CleanupStatus.Text = "Nettoyage interrompu ; certains fichiers ont peut-être été déplacés.";
+            MessageBox.Show(this, ex.Message, "Discoscope");
+        }
+        finally
+        {
+            _cleanupCancellation?.Dispose();
+            _cleanupCancellation = null;
+            _cleanupBusy = false;
+            UpdateCleanupSelection();
+        }
     }
 
     private async void RecycleUserTempCleanup(object sender, RoutedEventArgs e)
