@@ -89,6 +89,8 @@
                     <RowDefinition Height="95"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="95"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="120"/>
                 </Grid.RowDefinitions>
                 <DockPanel>
                     <TextBlock Text="Dossiers les plus volumineux" FontSize="18" FontWeight="SemiBold"/>
@@ -119,6 +121,17 @@
                         <DataGridTextColumn Header="Taille logique" Binding="{Binding Size}" Width="120"/>
                         <DataGridTextColumn Header="Fichiers" Binding="{Binding Files}" Width="85"/>
                         <DataGridTextColumn Header="Ignorés" Binding="{Binding Skipped}" Width="85"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Grid.Row="9" Text="Fichiers les plus volumineux — top 200" FontWeight="SemiBold" Margin="0,10,0,8"/>
+                <DataGrid Grid.Row="10" ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False"
+                          IsReadOnly="True" Background="#1A2230" Foreground="White"
+                          RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
+                          BorderThickness="0" GridLinesVisibility="None" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Fichier" Binding="{Binding Path}" Width="*"/>
+                        <DataGridTextColumn Header="Type" Binding="{Binding Extension}" Width="100"/>
+                        <DataGridTextColumn Header="Taille logique" Binding="{Binding SizeLabel}" Width="130"/>
                     </DataGrid.Columns>
                 </DataGrid>
                 <TabControl Grid.Row="7" Grid.RowSpan="2" Margin="0,10,0,0" Background="#1A2230" Foreground="#10151F">

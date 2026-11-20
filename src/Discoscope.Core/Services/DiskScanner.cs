@@ -22,6 +22,8 @@ public sealed class DiskScanner : IDiskScanner
         var stack = new Stack<string>();
         var sizes = new Dictionary<string, (long Bytes, long Files, long Directories)>(StringComparer.OrdinalIgnoreCase);
         var issues = new List<ScanIssue>();
+        const int maxLargestFiles = 200;
+        var largestFiles = new PriorityQueue<LargeFileEntry, long>();
         stack.Push(root);
 
         long fileCount = 0, directoryCount = 0, bytes = 0;
@@ -56,6 +58,17 @@ public sealed class DiskScanner : IDiskScanner
                         else
                         {
                             long length = new FileInfo(path).Length;
+                            if (length > 0)
+                            {
+                                var file = new LargeFileEntry(path, length);
+                                if (largestFiles.Count < maxLargestFiles)
+                                    largestFiles.Enqueue(file, length);
+                                else if (largestFiles.TryPeek(out _, out long smallest) && length > smallest)
+                                {
+                                    largestFiles.Dequeue();
+                                    largestFiles.Enqueue(file, length);
+                                }
+                            }
                             localBytes += length;
                             localFiles++;
                             bytes += length;
@@ -101,6 +114,9 @@ public sealed class DiskScanner : IDiskScanner
             .ToArray();
 
         progress?.Report(new ScanProgress(fileCount, directoryCount, bytes, root));
-        return new ScanResult(root, bytes, fileCount, directoryCount, entries, issues, DateTimeOffset.Now);
+        return new ScanResult(root, bytes, fileCount, directoryCount, entries, issues, DateTimeOffset.Now)
+        {
+            LargestFiles = largestFiles.UnorderedItems.Select(x => x.Element).OrderByDescending(x => x.Bytes).ToArray()
+        };
     }
 }

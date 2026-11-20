@@ -50,6 +50,10 @@ L’onglet **Clichés instantanés · VSS** exécute uniquement `vssadmin list s
 
 Une carte proportionnelle présente jusqu’à 24 sous-dossiers par niveau. Cliquez sur un rectangle pour descendre dans le dossier et utilisez « Retour » pour remonter. La navigation utilise les résultats en mémoire sans relancer le scan. Les surfaces représentent leurs tailles logiques relatives, sans additionner des dossiers parents et enfants. Cette carte ne représente pas l’espace NTFS réellement alloué ni les fichiers directement situés à la racine.
 
+### Fichiers volumineux
+
+Pendant le scan, Discoscope conserve en mémoire les 200 plus grands fichiers accessibles grâce à une file de priorité bornée. L’interface affiche leur chemin, extension et taille logique. Les fichiers non accessibles et les points de réanalyse ne sont pas inclus. Cette liste est un diagnostic : aucune suppression automatique.
+
 ## Architecture
 
 - `Discoscope.Core` : modèles et scanner de dossiers, indépendants de WPF.

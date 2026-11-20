@@ -7,6 +7,12 @@ using Discoscope.Core.Services;
 
 namespace Discoscope.Desktop.ViewModels;
 
+public sealed record LargeFileRow(string Path, long Bytes)
+{
+    public string SizeLabel => SizeFormatter.Format(Bytes);
+    public string Extension => System.IO.Path.GetExtension(Path).ToLowerInvariant();
+}
+
 public sealed record TemporaryRow(string Name, string Path, string Size, long Files, long Skipped);
 
 public sealed record DirectoryRow(string Path, long Bytes, long FileCount)
@@ -55,6 +61,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ObservableCollection<DirectoryRow> Entries { get; } = [];
     public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
+    public ObservableCollection<LargeFileRow> LargestFiles { get; } = [];
     public ObservableCollection<DirectoryRow> MapEntries { get; } = [];
     public string MapPath { get => _mapPath; private set { _mapPath = value; Changed(); } }
     public RelayCommand NavigateBackCommand { get; }
@@ -189,6 +196,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _scanCancellation = new CancellationTokenSource();
         Entries.Clear();
         TemporaryEntries.Clear();
+        LargestFiles.Clear();
         MapEntries.Clear();
         _mapIndex.Clear();
         MapPath = "Analyse en cours…";
@@ -217,6 +225,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
             IssuesLabel = result.Issues.Count.ToString("N0");
+            foreach (var file in result.LargestFiles)
+                LargestFiles.Add(new LargeFileRow(file.Path, file.Bytes));
             foreach (var temp in await new TemporaryFilesInspector().InspectAsync(_scanCancellation.Token))
                 TemporaryEntries.Add(new TemporaryRow(temp.Name, temp.Path, SizeFormatter.Format(temp.LogicalBytes), temp.FileCount, temp.SkippedCount));
             _mapRoot = Path.TrimEndingDirectorySeparator(result.Root);
