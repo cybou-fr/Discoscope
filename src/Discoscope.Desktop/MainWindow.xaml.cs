@@ -77,10 +77,14 @@ public partial class MainWindow : Window
         try
         {
             var token = _cleanupCancellation.Token;
+            var userProgress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.Progress>(p =>
+                CleanupOverviewStatus.Text = $"Utilisateur : {p.Visited:N0} entrées examinées, {p.Eligible:N0} fichiers éligibles…");
             var user = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(
-                Discoscope.Desktop.Services.UserTempCleanup.Location.User, token));
+                Discoscope.Desktop.Services.UserTempCleanup.Location.User, token, userProgress));
+            var windowsProgress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.Progress>(p =>
+                CleanupOverviewStatus.Text = $"Windows : {p.Visited:N0} entrées examinées, {p.Eligible:N0} fichiers éligibles…");
             var windows = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(
-                Discoscope.Desktop.Services.UserTempCleanup.Location.Windows, token));
+                Discoscope.Desktop.Services.UserTempCleanup.Location.Windows, token, windowsProgress));
             static long Total(IReadOnlyList<Discoscope.Desktop.Services.UserTempCleanup.Candidate> items)
             {
                 long bytes = 0;
@@ -131,7 +135,9 @@ public partial class MainWindow : Window
         {
             var location = SelectedCleanupLocation;
             var token = _cleanupCancellation!.Token;
-            var candidates = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(location, token));
+            var progress = new Progress<Discoscope.Desktop.Services.UserTempCleanup.Progress>(p =>
+                CleanupStatus.Text = $"{p.Visited:N0} entrées examinées · {p.Eligible:N0} fichiers · {FormatCleanupBytes(p.LogicalBytes)}…");
+            var candidates = await Task.Run(() => Discoscope.Desktop.Services.UserTempCleanup.Preview(location, token, progress));
             CleanupFiles.ItemsSource = candidates;
             long total = 0;
             foreach (var candidate in candidates)

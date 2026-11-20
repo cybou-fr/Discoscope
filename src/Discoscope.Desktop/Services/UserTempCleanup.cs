@@ -5,6 +5,7 @@ public static class UserTempCleanup
 {
     public sealed record Candidate(string Path, long Bytes, DateTime ModifiedUtc);
     public sealed record Result(int Recycled, int Skipped, long LogicalBytes);
+    public sealed record Progress(long Visited, int Eligible, long LogicalBytes);
     public enum Location { User, Windows }
     public static string GetRoot(Location location) =>
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(location == Location.User
@@ -24,11 +25,13 @@ public static class UserTempCleanup
         }
         return false;
     }
-    public static IReadOnlyList<Candidate> Preview(Location location = Location.User, CancellationToken token = default)
+    public static IReadOnlyList<Candidate> Preview(Location location = Location.User, CancellationToken token = default, IProgress<Progress>? progress = null)
     {
         var root = GetRoot(location);
         var found = new List<Candidate>();
         var cutoff = DateTime.UtcNow.AddDays(-7);
+        long visited = 0;
+        long logicalBytes = 0;
         if (!Directory.Exists(root) || (File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0) return found;
         var stack = new Stack<string>();
         stack.Push(root);
@@ -41,6 +44,8 @@ public static class UserTempCleanup
                 foreach (var path in Directory.EnumerateFileSystemEntries(directory))
                 {
                     token.ThrowIfCancellationRequested();
+                    visited++;
+                    if (visited % 2048 == 0) progress?.Report(new Progress(visited, found.Count, logicalBytes));
                     try
                     {
                         var attributes = File.GetAttributes(path);
@@ -48,13 +53,17 @@ public static class UserTempCleanup
                         if ((attributes & FileAttributes.Directory) != 0) { stack.Push(path); continue; }
                         var info = new FileInfo(path);
                         if (info.LastWriteTimeUtc <= cutoff)
+                        {
                             found.Add(new Candidate(info.FullName, info.Length, info.LastWriteTimeUtc));
+                            logicalBytes = logicalBytes > long.MaxValue - info.Length ? long.MaxValue : logicalBytes + info.Length;
+                        }
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
+        progress?.Report(new Progress(visited, found.Count, logicalBytes));
         return found;
     }
     public static Result Recycle(IReadOnlyList<Candidate> candidates, Location location = Location.User, CancellationToken token = default)
