@@ -372,6 +372,12 @@ public partial class MainWindow : Window
             Navigate(directory);
     }
 
+    private void ScrollExplorerPath(object sender, ScrollChangedEventArgs e)
+    {
+        if (ReferenceEquals(sender, e.OriginalSource) && e.ExtentWidthChange != 0 && sender is ScrollViewer path)
+            path.ScrollToRightEnd();
+    }
+
     private void Navigate(ScanDirectory directory)
     {
         if (Model.NavigateMapCommand.CanExecute(directory))

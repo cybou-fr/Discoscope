@@ -6,6 +6,8 @@ using Discoscope.Core.Models;
 
 namespace Discoscope.Desktop.ViewModels;
 
+public sealed record ExplorerBreadcrumb(ScanDirectory Directory, bool IsCurrent, ParameterCommand NavigateCommand);
+
 public sealed class ExplorerNode : INotifyPropertyChanged
 {
     private bool _isExpanded;

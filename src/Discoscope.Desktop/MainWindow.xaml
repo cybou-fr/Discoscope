@@ -149,8 +149,40 @@
                                 <Button Content="Ouvrir l’emplacement" Click="OpenExplorerLocation" Padding="10,5" Margin="6,0,0,0"
                                         IsEnabled="{Binding HasItems, ElementName=ExplorerTree}"/>
                             </StackPanel>
-                            <TextBlock Text="{Binding MapPath}" ToolTip="{Binding MapPath}" TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,6,0">
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                              Focusable="False" ScrollChanged="ScrollExplorerPath"
+                                              AutomationProperties.Name="Chemin du dossier courant">
+                                    <ItemsControl ItemsSource="{Binding ExplorerPath}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button x:Name="Ancestor" Content="{Binding Directory.Name}"
+                                                            Command="{Binding NavigateCommand}"
+                                                            CommandParameter="{Binding Directory}" ToolTip="{Binding Directory.Path}"
+                                                            Padding="7,3" MinHeight="25"/>
+                                                    <TextBlock x:Name="Separator" Text="›" Margin="4,0"
+                                                               Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="Current" Text="{Binding Directory.Name}" Visibility="Collapsed"
+                                                               ToolTip="{Binding Directory.Path}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter TargetName="Ancestor" Property="Visibility" Value="Collapsed"/>
+                                                        <Setter TargetName="Separator" Property="Visibility" Value="Collapsed"/>
+                                                        <Setter TargetName="Current" Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <TextBlock Text="{Binding ExplorerContentSummary}" Margin="0,3,0,0"
+                                           Foreground="{StaticResource MutedBrush}"/>
+                            </StackPanel>
                         </DockPanel>
                         <Grid Grid.Row="1">
                             <Grid.ColumnDefinitions>

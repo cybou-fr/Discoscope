@@ -80,6 +80,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<StorageInsightRow> StorageInsights { get; } = [];
     public IReadOnlyList<TreemapItem> MapEntries { get; private set; } = [];
     public ScanDirectory? CurrentDirectory => _currentDirectory;
+    public IReadOnlyList<ExplorerBreadcrumb> ExplorerPath { get; private set; } = [];
+    public string ExplorerContentSummary => _currentDirectory is { } directory
+        ? $"{directory.Directories.Count:N0} {(directory.Directories.Count > 1 ? "dossiers" : "dossier")} · " +
+          $"{directory.Files.Count:N0} {(directory.Files.Count > 1 ? "fichiers" : "fichier")}"
+        : "";
     public IReadOnlyList<ExplorerNode> ExplorerRoots { get; private set; } = [];
     public ExplorerRows? ExplorerItems { get; private set; }
     public string MapHint => MapEntries.Count > 0 ? ""
@@ -154,8 +159,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void SetDirectory(ScanDirectory? directory)
     {
         _currentDirectory = directory;
+        var path = new Stack<ExplorerBreadcrumb>();
+        for (var part = directory; part is not null; part = part.Parent)
+            path.Push(new ExplorerBreadcrumb(part, ReferenceEquals(part, directory), NavigateMapCommand));
+        ExplorerPath = path.ToArray();
         if (directory is not null) MapPath = directory.Path;
         Changed(nameof(CurrentDirectory));
+        Changed(nameof(ExplorerPath));
+        Changed(nameof(ExplorerContentSummary));
         _synchronizingExplorer = true;
         try { UpdateExplorer(directory); }
         finally { _synchronizingExplorer = false; }
