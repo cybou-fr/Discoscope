@@ -39,7 +39,10 @@ public sealed class DiskScannerTests
             Assert.Equal(192, one.Bytes);
             Assert.Equal(128, one.DirectBytes);
             Assert.Equal(1, one.DirectFileCount);
-            Assert.Equal(new ScanFile("first.bin", 128), Assert.Single(one.Files));
+            Assert.Equal(new ScanFile("first.bin", 128)
+            {
+                ModifiedUtc = File.GetLastWriteTimeUtc(Path.Combine(root, "one", "first.bin"))
+            }, Assert.Single(one.Files));
             var two = Assert.Single(one.Directories);
             Assert.Equal(Path.Combine(root, "one", "two", "second.bin"),
                 Path.Combine(two.Path, Assert.Single(two.Files).Name));
@@ -247,13 +250,19 @@ public sealed class DiskScannerTests
             Assert.Equal(8, result.TotalBytes);
             var directory = Assert.IsType<ScanDirectory>(result.Hierarchy);
             Assert.Equal(3, directory.DirectBytes);
-            Assert.Equal(new ScanFile("root.txt", 3), Assert.Single(directory.Files));
+            Assert.Equal(new ScanFile("root.txt", 3)
+            {
+                ModifiedUtc = File.GetLastWriteTimeUtc(Path.Combine(directory.Path, "root.txt"))
+            }, Assert.Single(directory.Files));
             for (int i = 0; i < 64; i++)
             {
                 directory = Assert.Single(directory.Directories);
                 Assert.Equal(5, directory.Bytes);
             }
-            Assert.Equal(new ScanFile("leaf.txt", 5), Assert.Single(directory.Files));
+            Assert.Equal(new ScanFile("leaf.txt", 5)
+            {
+                ModifiedUtc = File.GetLastWriteTimeUtc(Path.Combine(directory.Path, "leaf.txt"))
+            }, Assert.Single(directory.Files));
         }
         finally
         {

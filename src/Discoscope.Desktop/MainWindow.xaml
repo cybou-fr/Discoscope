@@ -147,10 +147,9 @@
                     </Grid>
                 </TabItem>
                 <TabItem x:Name="ExplorerWorkspace" Header="Explorer">
-                    <TabControl Margin="4" Background="{StaticResource PanelBrush}" BorderThickness="0">
-                <TabItem Header="Dossiers">
                     <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
@@ -197,13 +196,40 @@
                                            Foreground="{StaticResource MutedBrush}"/>
                             </StackPanel>
                         </DockPanel>
-                        <Grid Grid.Row="1">
+                        <WrapPanel Grid.Row="1" Margin="0,0,0,8" IsEnabled="{Binding HasItems, ElementName=ExplorerTree}">
+                            <TextBlock Text="Nom" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox x:Name="ExplorerNameFilter" Width="108" Margin="0,0,9,0" ToolTip="Rechercher dans le dossier courant"
+                                     AutomationProperties.Name="Nom du fichier ou du dossier" KeyDown="ExplorerFilterKey"/>
+                            <TextBlock Text="Extension" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox x:Name="ExplorerExtensionFilter" Width="48" Margin="0,0,9,0" ToolTip="Extension, par exemple PDF"
+                                     AutomationProperties.Name="Extension" KeyDown="ExplorerFilterKey"/>
+                            <TextBlock Text="Min. (Mio)" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox x:Name="ExplorerSizeFilter" Width="48" Margin="0,0,9,0" ToolTip="Taille minimale en Mio"
+                                     AutomationProperties.Name="Taille minimale en Mio" KeyDown="ExplorerFilterKey"/>
+                            <ComboBox x:Name="ExplorerAgeFilter" SelectedIndex="0" Width="163" Margin="0,0,6,0"
+                                      AutomationProperties.Name="Ancienneté de modification">
+                                <ComboBoxItem Content="Toutes les dates"/>
+                                <ComboBoxItem Content="Plus de 30 jours" Tag="30"/>
+                                <ComboBoxItem Content="Plus d’un an" Tag="365"/>
+                            </ComboBox>
+                            <Button Content="Filtrer" Click="ApplyExplorerFilter" Margin="0,0,6,0"/>
+                            <Button Content="Effacer" Click="ClearExplorerFilter"/>
+                            <TextBlock x:Name="ExplorerFilterStatus" Margin="8,0,0,0" VerticalAlignment="Center"
+                                       AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource MutedBrush}"/>
+                        </WrapPanel>
+                        <Grid Grid.Row="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="3*"/>
+                                <RowDefinition Height="6"/>
+                                <RowDefinition Height="2*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="220" MinWidth="140"/>
+                                <ColumnDefinition Width="180" MinWidth="105"/>
                                 <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TreeView x:Name="ExplorerTree" ItemsSource="{Binding ExplorerRoots}" SelectedItemChanged="SelectExplorerDirectory"
+                            <TreeView x:Name="ExplorerTree" Grid.RowSpan="4" ItemsSource="{Binding ExplorerRoots}" SelectedItemChanged="SelectExplorerDirectory"
                                       AutomationProperties.Name="Dossiers" Background="{StaticResource CanvasBrush}"
                                       Foreground="{StaticResource TextBrush}" BorderThickness="0" Padding="5"
                                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
@@ -220,7 +246,7 @@
                                     </Style>
                                 </TreeView.ItemContainerStyle>
                             </TreeView>
-                            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="{StaticResource PanelBrush}"/>
+                            <GridSplitter Grid.Column="1" Grid.RowSpan="4" HorizontalAlignment="Stretch" Background="{StaticResource PanelBrush}"/>
                             <DataGrid x:Name="ExplorerTable" Grid.Column="2" ItemsSource="{Binding ExplorerItems}"
                                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                                       AutomationProperties.Name="Contenu du dossier" SelectionMode="Single" SelectionUnit="FullRow"
@@ -230,8 +256,9 @@
                                       Sorting="SortExplorer" MouseDoubleClick="OpenExplorerDirectory" PreviewKeyDown="HandleExplorerKey">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Nom" Binding="{Binding Name}" SortMemberPath="Name" Width="*" MinWidth="120"/>
-                                    <DataGridTextColumn ElementStyle="{StaticResource TableNumber}" Header="Taille logique" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="125"/>
-                                    <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Type" Binding="{Binding Type}" SortMemberPath="Type" Width="100"/>
+                                    <DataGridTextColumn ElementStyle="{StaticResource TableNumber}" Header="Taille logique" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="105"/>
+                                    <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Type" Binding="{Binding Type}" SortMemberPath="Type" Width="80"/>
+                                    <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Modifié le" Binding="{Binding ModifiedLabel}" SortMemberPath="ModifiedUtc" Width="95"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                             <TextBlock x:Name="ExplorerEmptyState" Grid.Column="2" IsHitTestVisible="False"
@@ -239,7 +266,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Setter Property="Text" Value="Ce dossier est vide ou inaccessible."/>
+                                        <Setter Property="Text" Value="Aucun résultat dans ce dossier."/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasItems, ElementName=ExplorerTable}" Value="False">
                                                 <Setter Property="Visibility" Value="Visible"/>
@@ -251,45 +278,19 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                        </Grid>
-                    </Grid>
-                </TabItem>
-                        <TabItem Header="Carte du disque">
-                        <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Carte des dossiers" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                            <DockPanel Grid.Row="1" Margin="0,0,0,8">
-                                <Button Content="Retour" Command="{Binding NavigateBackCommand}"
-                                        DockPanel.Dock="Right" Padding="10,3" Margin="8,0,0,0"/>
-                                <TextBlock Text="{Binding MapPath}" TextTrimming="CharacterEllipsis"
-                                           VerticalAlignment="Center" ToolTip="{Binding MapPath}"/>
-                            </DockPanel>
-                            <controls:TreemapView Grid.Row="2" Items="{Binding MapEntries}" DirectoryPath="{Binding MapPath}"
+                            <GridSplitter Grid.Row="1" Grid.Column="2" HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                                          Background="{StaticResource PanelBrush}"/>
+                            <Grid Grid.Row="2" Grid.Column="2">
+                            <controls:TreemapView  Items="{Binding MapEntries}" DirectoryPath="{Binding MapPath}"
                                                   NavigateCommand="{Binding NavigateMapCommand}"
                                                   AutomationProperties.Name="Carte des dossiers"/>
-                            <TextBlock Grid.Row="2" Text="{Binding MapHint}" IsHitTestVisible="False" TextWrapping="Wrap"
+                            <TextBlock  Text="{Binding MapHint}" IsHitTestVisible="False" TextWrapping="Wrap"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
-                            <WrapPanel Grid.Row="3" Margin="0,7,0,0" TextElement.Foreground="{StaticResource MutedBrush}">
-                                <Rectangle Width="9" Height="9" Fill="{x:Static controls:TreemapView.DirectoryBrush}" Margin="0,0,4,0"/>
-                                <TextBlock Text="Dossiers" Margin="0,0,10,0"/>
-                                <Rectangle Width="9" Height="9" Fill="{x:Static controls:TreemapView.FileBrush}" Margin="0,0,4,0"/>
-                                <TextBlock Text="Fichiers" Margin="0,0,10,0"/>
-                                <Rectangle Width="9" Height="9" Fill="{x:Static controls:TreemapView.OtherBrush}" Margin="0,0,4,0"/>
-                                <TextBlock Text="Autres" Margin="0,0,10,0"/>
-                                <TextBlock Text="Flèches · Entrée" ToolTip="Choisir puis ouvrir un dossier sur la carte."/>
-                            </WrapPanel>
-                        </Grid>
-                        </TabItem>
-                <TabItem Header="Fichiers volumineux">
-                    <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <TextBlock Text="Les 200 plus grands fichiers accessibles" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                                        <DataGrid x:Name="LargestFilesTable" Grid.Row="1" ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False"
+                            </Grid>
+                            <Expander Grid.Row="3" Grid.Column="2" Header="Les 200 plus grands fichiers du lecteur"
+                                      Foreground="{StaticResource TextBrush}" Margin="0,4,0,0">
+                                <DataGrid x:Name="LargestFilesTable"  ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False" MaxHeight="150"
                           IsReadOnly="True" Background="#1A2230" Foreground="White"
                           RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
                           BorderThickness="0" GridLinesVisibility="None" CanUserAddRows="False">
@@ -299,12 +300,9 @@
                         <DataGridTextColumn ElementStyle="{StaticResource TableNumber}" Header="Taille logique" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="130"/>
                     </DataGrid.Columns>
                 </DataGrid>
-                                        <TextBlock Grid.Row="1" Style="{StaticResource EmptyTableHint}"
-                                                   Tag="{Binding ElementName=LargestFilesTable}" Text="Aucun fichier volumineux à afficher."/>
-
+                            </Expander>
+                        </Grid>
                     </Grid>
-                </TabItem>
-                    </TabControl>
                 </TabItem>
                 <TabItem Header="Nettoyage">
                     <ScrollViewer x:Name="CleanupViewport" Margin="8" VerticalScrollBarVisibility="Auto"

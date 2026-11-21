@@ -378,6 +378,11 @@ public partial class MainWindow : Window
         Model.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.CurrentDirectory))
+                ResetExplorerFilters();
+        };
+        Model.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainViewModel.CurrentDirectory))
                 foreach (var column in ExplorerTable.Columns) column.SortDirection = null;
         };
     }
@@ -417,6 +422,58 @@ public partial class MainWindow : Window
     {
         if (Model.NavigateMapCommand.CanExecute(directory))
             Model.NavigateMapCommand.Execute(directory);
+    }
+
+    private void ResetExplorerFilters()
+    {
+        ExplorerNameFilter.Clear();
+        ExplorerExtensionFilter.Clear();
+        ExplorerSizeFilter.Clear();
+        ExplorerAgeFilter.SelectedIndex = 0;
+        ExplorerFilterStatus.Text = "";
+        foreach (var column in ExplorerTable.Columns) column.SortDirection = null;
+    }
+
+    private async void ClearExplorerFilter(object sender, RoutedEventArgs e)
+    {
+        ResetExplorerFilters();
+        await FilterExplorerAsync();
+    }
+
+    private async void ApplyExplorerFilter(object sender, RoutedEventArgs e) => await FilterExplorerAsync();
+
+    private async void ExplorerFilterKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        await FilterExplorerAsync();
+    }
+
+    private async Task FilterExplorerAsync()
+    {
+        const long bytesPerMib = 1024 * 1024;
+        string size = ExplorerSizeFilter.Text.Trim();
+        long minimumMib = 0;
+        if (size.Length > 0 && (!long.TryParse(size, out minimumMib) ||
+            minimumMib < 0 || minimumMib > long.MaxValue / bytesPerMib))
+        {
+            ExplorerFilterStatus.Text = "Saisissez une taille entière positive en Mio.";
+            return;
+        }
+
+        string extension = ExplorerExtensionFilter.Text.Trim().TrimStart('.');
+        DateTime? cutoff = ExplorerAgeFilter.SelectedIndex switch
+        {
+            1 => DateTime.UtcNow.AddDays(-30),
+            2 => DateTime.UtcNow.AddDays(-365),
+            _ => null
+        };
+        if (await Model.FilterExplorerAsync(ExplorerNameFilter.Text.Trim(),
+            extension.Length == 0 ? "" : "." + extension, minimumMib * bytesPerMib, cutoff))
+        {
+            foreach (var column in ExplorerTable.Columns) column.SortDirection = null;
+            ExplorerFilterStatus.Text = $"{Model.ExplorerItems?.Count:N0} résultat(s)";
+        }
     }
 
     private async void SortExplorer(object sender, DataGridSortingEventArgs e)

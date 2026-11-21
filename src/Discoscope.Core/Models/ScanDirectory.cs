@@ -1,6 +1,9 @@
 namespace Discoscope.Core.Models;
 
-public readonly record struct ScanFile(string Name, long Bytes);
+public readonly record struct ScanFile(string Name, long Bytes)
+{
+    public DateTime ModifiedUtc { get; init; }
+}
 
 public sealed class ScanDirectory
 {

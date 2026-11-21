@@ -231,7 +231,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         node.IsSelected = true;
     }
 
-    public async Task<bool> SortExplorerAsync(string property, ListSortDirection direction)
+    public Task<bool> SortExplorerAsync(string property, ListSortDirection direction) =>
+        TransformExplorerAsync((items, token) => items.Sort(property, direction, token));
+
+    public Task<bool> FilterExplorerAsync(string name, string extension, long minimumBytes, DateTime? modifiedBefore) =>
+        TransformExplorerAsync((items, token) => items.Filter(name, extension, minimumBytes, modifiedBefore, token));
+
+    private async Task<bool> TransformExplorerAsync(Func<ExplorerRows, CancellationToken, ExplorerRows> transform)
     {
         if (ExplorerItems is not { } items) return false;
         _explorerSortCancellation?.Cancel();
@@ -239,7 +245,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _explorerSortCancellation = cancellation;
         try
         {
-            var sorted = await Task.Run(() => items.Sort(property, direction, cancellation.Token), cancellation.Token);
+            var sorted = await Task.Run(() => transform(items, cancellation.Token), cancellation.Token);
             if (cancellation.IsCancellationRequested) return false;
             ExplorerItems = sorted;
             Changed(nameof(ExplorerItems));

@@ -72,13 +72,13 @@ public sealed class DiskScanner : IDiskScanner
             try
             {
                 var enumerationStarted = activity is null ? 0 : Stopwatch.GetTimestamp();
-                using var children = new FileSystemEnumerable<(string Name, FileAttributes Attributes, long Length)>(
-                    current, (ref FileSystemEntry entry) => (entry.FileName.ToString(), entry.Attributes, entry.Length),
+                using var children = new FileSystemEnumerable<(string Name, FileAttributes Attributes, long Length, DateTime ModifiedUtc)>(
+                    current, (ref FileSystemEntry entry) => (entry.FileName.ToString(), entry.Attributes, entry.Length, retainFiles && !entry.IsDirectory ? entry.LastWriteTimeUtc.UtcDateTime : default),
                     enumerationOptions).GetEnumerator();
                 if (activity is not null) enumerationTicks += Stopwatch.GetTimestamp() - enumerationStarted;
                 while (MoveNext(children))
                 {
-                    var (name, attributes, length) = children.Current;
+                    var (name, attributes, length, modifiedUtc) = children.Current;
                     cancellationToken.ThrowIfCancellationRequested();
                     if ((attributes & FileAttributes.ReparsePoint) != 0)
                     {
@@ -93,7 +93,7 @@ public sealed class DiskScanner : IDiskScanner
                     }
                     else
                     {
-                        if (retainFiles) (files ??= []).Add(new ScanFile(name, length));
+                        if (retainFiles) (files ??= []).Add(new ScanFile(name, length) { ModifiedUtc = modifiedUtc });
                         if (largestFiles.Count < maxLargestFiles)
                             largestFiles.Enqueue(new LargeFileEntry(Path.Join(current, name), length), length);
                         else if (largestFiles.TryPeek(out _, out long smallest) && length > smallest)
@@ -143,7 +143,7 @@ public sealed class DiskScanner : IDiskScanner
             RootDirectFileCount = rootDirectory.DirectFileCount
         };
 
-        bool MoveNext(IEnumerator<(string Name, FileAttributes Attributes, long Length)> children)
+        bool MoveNext(IEnumerator<(string Name, FileAttributes Attributes, long Length, DateTime ModifiedUtc)> children)
         {
             if (activity is null) return children.MoveNext();
 
