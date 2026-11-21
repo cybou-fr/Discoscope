@@ -109,6 +109,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <TextBlock Text="Carte des dossiers" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
                             <DockPanel Grid.Row="1" Margin="0,0,0,8">
@@ -118,9 +119,19 @@
                                            VerticalAlignment="Center" ToolTip="{Binding MapPath}"/>
                             </DockPanel>
                             <controls:TreemapView Grid.Row="2" Items="{Binding MapEntries}" DirectoryPath="{Binding MapPath}"
-                                                  NavigateCommand="{Binding NavigateMapCommand}"/>
+                                                  NavigateCommand="{Binding NavigateMapCommand}"
+                                                  AutomationProperties.Name="Carte des dossiers"/>
                             <TextBlock Grid.Row="2" Text="{Binding MapHint}" IsHitTestVisible="False" TextWrapping="Wrap"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
+                            <WrapPanel Grid.Row="3" Margin="0,7,0,0" TextElement.Foreground="{StaticResource MutedBrush}">
+                                <Rectangle Width="9" Height="9" Fill="{x:Static controls:TreemapView.DirectoryBrush}" Margin="0,0,4,0"/>
+                                <TextBlock Text="Dossiers" Margin="0,0,10,0"/>
+                                <Rectangle Width="9" Height="9" Fill="{x:Static controls:TreemapView.FileBrush}" Margin="0,0,4,0"/>
+                                <TextBlock Text="Fichiers" Margin="0,0,10,0"/>
+                                <Rectangle Width="9" Height="9" Fill="{x:Static controls:TreemapView.OtherBrush}" Margin="0,0,4,0"/>
+                                <TextBlock Text="Autres" Margin="0,0,10,0"/>
+                                <TextBlock Text="Flèches · Entrée" ToolTip="Choisir puis ouvrir un dossier sur la carte."/>
+                            </WrapPanel>
                         </Grid>
                     </Grid>
                 </TabItem>
