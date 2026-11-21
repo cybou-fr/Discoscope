@@ -121,6 +121,17 @@ public sealed class UserTempCleanupTests : IDisposable
     }
 
     [Fact]
+    public void InventoryAcceptsEquivalentWindowsPathCasing()
+    {
+        WriteOld("casing.bin", 4);
+        using var inventory = Index();
+        var alternateCaseRoot = _root.FullName.ToUpperInvariant();
+        var report = UserTempCleanup.RecycleInventory(inventory, alternateCaseRoot, MoveFixtureFile);
+        Assert.Equal(new UserTempCleanup.Result(1, 0, 4), report.Result);
+        Assert.Null(report.Failure);
+    }
+
+    [Fact]
     public void MissingRootDoesNotLeaveAnInventory()
     {
         Assert.Throws<IOException>(() => UserTempCleanup.CreateInventory(

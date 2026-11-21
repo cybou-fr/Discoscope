@@ -225,7 +225,7 @@ public static class UserTempCleanup
         CancellationToken token = default, IProgress<RecycleProgress>? progress = null)
     {
         root = NormalizeRoot(root);
-        if (!string.Equals(root, inventory.Root, StringComparison.Ordinal))
+        if (!string.Equals(root, inventory.Root, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("L’inventaire appartient à un autre emplacement.");
         return RecyclePages(inventory.Pages(token), inventory.Count, root, recycle, token, progress);
     }

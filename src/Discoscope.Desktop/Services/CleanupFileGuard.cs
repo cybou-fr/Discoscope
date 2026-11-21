@@ -30,7 +30,7 @@ internal sealed class CleanupFileGuard : IDisposable
         if (volume is not { Length: 3 } || volume[1] != ':' || root.Length <= volume.Length ||
             new DriveInfo(volume).DriveType != DriveType.Fixed ||
             !Path.IsPathFullyQualified(path) || !string.Equals(Path.GetFullPath(path), path, StringComparison.Ordinal) ||
-            !path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            !path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new IOException("Hors emplacement local autorisé.");
 
         var segments = path[volume.Length..].Split(Path.DirectorySeparatorChar);

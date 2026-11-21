@@ -12,7 +12,7 @@ Le prototype comprend :
 - Analyse réelle et asynchrone des fichiers et dossiers d'un lecteur sélectionné.
 - Progression, annulation et classement des dossiers volumineux.
 - Comptage des fichiers et avertissements d'accès.
-- Analyse **en lecture seule** : aucune suppression, aucune donnée envoyée sur Internet.
+- Analyse des disques en lecture seule ; nettoyage des temporaires uniquement sur confirmation explicite, par déplacement vers la Corbeille. Aucune donnée envoyée sur Internet.
 
 ### Démarrage
 
@@ -84,6 +84,12 @@ Apache License 2.0. Voir [LICENSE](LICENSE).
 
 L'onglet **Espace Windows** classe des emplacements connus (temporaires utilisateur et Windows, téléchargements, Windows Update, cache de distribution, corbeille) à partir de l'arborescence déjà analysée, sans nouveau parcours disque. Les catégories absentes ou inaccessibles ne sont pas inventées. Les tailles sont logiques et ne constituent pas une estimation de l'espace libérable. Aucune suppression n'est effectuée.
 
-### Nettoyage des temporaires utilisateur
+### Nettoyage des fichiers temporaires
 
-L'onglet **Nettoyage** permet de prévisualiser au maximum 500 fichiers du dossier temporaire utilisateur non modifiés depuis sept jours. La sélection et une confirmation explicite sont requises avant leur déplacement vers la Corbeille. Les fichiers modifiés depuis l'aperçu et les points de réanalyse sont ignorés. Les dossiers ne sont pas supprimés. Les tailles sont logiques et ne représentent pas un gain physique garanti. Relancer l'analyse après nettoyage.
+L’onglet **Nettoyage** indexe les fichiers temporaires utilisateur ou Windows non modifiés depuis au moins sept jours. L’inventaire temporaire sur disque permet une navigation par pages de **1 000 fichiers**, sans conserver tous les chemins en mémoire.
+
+La sélection de fichiers sur une page ou l’option explicite **Nettoyer toutes les pages** demandent une confirmation avant déplacement vers la Corbeille. Chaque fichier est revérifié (identité Windows, taille, date, chemin et points de réanalyse) avant l’opération ; les dossiers ne sont pas supprimés. La progression, l’annulation et les anomalies sont affichées.
+
+Les tailles sont logiques et ne représentent pas un gain physique garanti : vider la Corbeille reste une action séparée. Relancer l’analyse après nettoyage.
+
+Les tests de nettoyage dans `Discoscope.Desktop.Tests` utilisent des répertoires isolés et simulent le déplacement des fichiers ; ils ne valident pas à eux seuls l’intégration réelle à la Corbeille Windows.
