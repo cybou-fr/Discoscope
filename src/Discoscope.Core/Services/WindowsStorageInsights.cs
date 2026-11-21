@@ -2,56 +2,73 @@ using Discoscope.Core.Models;
 
 namespace Discoscope.Core.Services;
 
-/// <summary>
-/// Read-only, non-overlapping Windows storage inventory based on the existing scan.
-/// Sizes are logical, not estimates of reclaimable physical disk space.
-/// </summary>
+/// <summary>Windows storage categories measured from the scan snapshot.</summary>
 public static class WindowsStorageInsights
 {
     public static IReadOnlyList<StorageInsight> Analyze(ScanDirectory? root, CancellationToken token = default)
     {
         if (root is null) return [];
+        var volume = Path.GetPathRoot(root.Path) ?? root.Path;
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var candidates = new (string Category, string Path, string Guidance, string Risk)[]
+        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var roamingData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var candidates = new (string Name, string Path, string Guidance, bool IsFile)[]
         {
-            ("Fichiers temporaires utilisateur", Path.GetTempPath(),
-                "Examiner les fichiers anciens et fermer les applications avant toute suppression.", "À vérifier"),
-            ("Fichiers temporaires Windows", Path.Combine(windows, "Temp"),
-                "Certains fichiers peuvent être utilisés par Windows ou par des installations.", "À vérifier"),
-            ("Téléchargements", Path.Combine(profile, "Downloads"),
-                "Fichiers personnels : ne jamais supprimer automatiquement.", "Personnel"),
-            ("Windows Update", Path.Combine(windows, "SoftwareDistribution", "Download"),
-                "Utiliser les outils de nettoyage Windows plutôt qu'une suppression directe.", "Système"),
-            ("Optimisation de la distribution", Path.Combine(windows, "SoftwareDistribution", "DeliveryOptimization"),
-                "Utiliser les paramètres de stockage Windows pour nettoyer le cache.", "Système"),
-            ("Corbeille", Path.Combine(Path.GetPathRoot(root.Path) ?? root.Path, "$Recycle.Bin"),
-                "Vider la corbeille uniquement après vérification des éléments.", "À vérifier")
+            ("Temporaires utilisateur", Path.GetTempPath(), "Aperçu et déplacement vers la Corbeille dans Nettoyage.", false),
+            ("Temporaires Windows", Path.Combine(windows, "Temp"), "Nettoyage des fichiers éligibles si les droits le permettent.", false),
+            ("Téléchargements", Path.Combine(profile, "Downloads"), "Fichiers personnels. Vérifier dans l’Explorateur.", false),
+            ("Profil utilisateur", profile, "Inclut les téléchargements et les données d’applications.", false),
+            ("Données d’applications locales", localData, "Utiliser les options de l’application concernée.", false),
+            ("Données d’applications itinérantes", roamingData, "Utiliser les options de l’application concernée.", false),
+            ("Windows Update", Path.Combine(windows, "SoftwareDistribution", "Download"), "Utiliser les paramètres de stockage Windows.", false),
+            ("Optimisation de la distribution", Path.Combine(windows, "SoftwareDistribution", "DeliveryOptimization"), "Utiliser les paramètres de stockage Windows.", false),
+            ("Corbeille", Path.Combine(volume, "$Recycle.Bin"), "Consulter les éléments dans la Corbeille Windows.", false),
+            ("Fichier de veille prolongée", Path.Combine(volume, "hiberfil.sys"), "Géré par les paramètres d’alimentation Windows.", true),
+            ("Fichier d’échange", Path.Combine(volume, "pagefile.sys"), "Géré par la mémoire virtuelle de Windows.", true)
         };
-        var paths = new Dictionary<string, (string Category, string Guidance, string Risk)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var item in candidates)
+
+        var results = new List<StorageInsight>();
+        foreach (var candidate in candidates)
         {
             token.ThrowIfCancellationRequested();
-            if (!string.IsNullOrWhiteSpace(item.Path))
-                paths.TryAdd(Path.TrimEndingDirectorySeparator(Path.GetFullPath(item.Path)),
-                    (item.Category, item.Guidance, item.Risk));
-        }
-        var found = new List<StorageInsight>();
-        var stack = new Stack<ScanDirectory>();
-        stack.Push(root);
-        while (stack.Count > 0)
-        {
-            token.ThrowIfCancellationRequested();
-            var directory = stack.Pop();
-            if (paths.TryGetValue(Path.TrimEndingDirectorySeparator(directory.Path), out var category))
+            if (!Path.IsPathFullyQualified(candidate.Path)) continue;
+
+            var path = Path.TrimEndingDirectorySeparator(candidate.Path);
+            var relative = Path.GetRelativePath(root.Path, path);
+            bool outside = Path.IsPathRooted(relative) || relative == ".." ||
+                relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+            if (outside)
             {
-                found.Add(new StorageInsight(category.Category, directory.Path, directory.Bytes,
-                    directory.FileCount, category.Guidance, category.Risk));
-                continue; // Do not double-count a nested category.
+                Add(0, 0, "Hors périmètre", false);
+                continue;
             }
-            foreach (var child in directory.Directories)
-                stack.Push(child);
+
+            var directory = TemporaryFilesInspector.FindDirectory(root,
+                candidate.IsFile ? Path.GetDirectoryName(path)! : path, token);
+            if (candidate.IsFile && directory is not null)
+            {
+                var name = Path.GetFileName(path);
+                var found = false;
+                foreach (var file in directory.Files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (!file.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
+                    Add(file.Bytes, 1, "Mesuré", true);
+                    found = true;
+                    break;
+                }
+                if (!found) Add(0, 0, "Non relevé", false);
+            }
+            else if (!candidate.IsFile && directory is { EnumerationSucceeded: true })
+                Add(directory.Bytes, directory.FileCount, directory.SkippedCount > 0 ? "Partiel" : "Mesuré", true);
+            else
+                Add(0, 0, "Non relevé", false);
+
+            void Add(long bytes, long count, string status, bool measured) =>
+                results.Add(new StorageInsight(candidate.Name, path, bytes, count, candidate.Guidance, status)
+                    { IsMeasured = measured });
         }
-        return found.OrderByDescending(x => x.LogicalBytes).ToArray();
+        return results.OrderByDescending(row => row.IsMeasured).ThenByDescending(row => row.LogicalBytes).ToArray();
     }
 }

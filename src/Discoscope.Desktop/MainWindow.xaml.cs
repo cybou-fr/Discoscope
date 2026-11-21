@@ -281,7 +281,7 @@ public partial class MainWindow : Window
             $"Déplacer TOUS les {inventory.Count:N0} fichiers indexés ({FormatCleanupBytes(inventory.LogicalBytes)} logiques) vers la Corbeille ?\n\nLes fichiers sont revérifiés individuellement. Cette opération peut être longue et l’espace libre n’augmentera pas avant de vider la Corbeille.",
             "Confirmer le nettoyage complet", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         await RunCleanupAsync((token, progress) => UserTempCleanup.RecycleInventory(inventory, location, token, progress),
-            "Nettoyage par lots en cours…", " · Nettoyage terminé.");
+            location, "Nettoyage par lots en cours…", " · Nettoyage terminé.");
     }
 
     private async void RecycleUserTempCleanup(object sender, RoutedEventArgs e)
@@ -298,12 +298,12 @@ public partial class MainWindow : Window
             "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         var location = SelectedCleanupLocation;
         await RunCleanupAsync((token, progress) => UserTempCleanup.RecycleWithReport(selected, location, token, progress),
-            "Déplacement vers la Corbeille…", " · Résultats du disque à actualiser.");
+            location, "Déplacement vers la Corbeille…", " · Résultats du disque à actualiser.");
     }
 
     private async Task RunCleanupAsync(
         Func<CancellationToken, IProgress<UserTempCleanup.RecycleProgress>, UserTempCleanup.RecycleReport> recycle,
-        string runningStatus, string completedStatus)
+        UserTempCleanup.Location location, string runningStatus, string completedStatus)
     {
         var token = StartCleanup();
         CleanupStatus.Text = runningStatus;
@@ -316,12 +316,21 @@ public partial class MainWindow : Window
                 CleanupProgressBar.IsIndeterminate = false;
                 CleanupStatus.Text = $"{p.Processed:N0} / {p.Total:N0} traités · {p.Recycled:N0} déplacés · {p.Skipped:N0} ignorés…";
             });
-            var report = await Task.Run(() => recycle(token, progress));
+            var (report, before, after) = await Task.Run(() =>
+            {
+                var root = UserTempCleanup.GetRoot(location);
+                var freeBefore = TryGetFreeBytes(root);
+                var result = recycle(token, progress);
+                return (result, freeBefore, TryGetFreeBytes(root));
+            });
             _cleanupProgressVersion++;
             ReleaseCleanupInventory();
             var result = report.Result;
             CleanupStatus.Text = $"{result.Recycled:N0} déplacés · {result.Skipped:N0} ignorés · {FormatCleanupBytes(result.LogicalBytes)} logiques" +
-                CleanupOutcome(report, completedStatus);
+                CleanupOutcome(report, completedStatus) +
+                (before is { } previous && after is { } current
+                    ? $" · Libre sur le volume : {SizeFormatter.Format(previous)} → {SizeFormatter.Format(current)}."
+                    : "");
             if (!_closeAfterCleanup && report.Errors.Count > 0)
                 MessageBox.Show(this, string.Join(Environment.NewLine, report.Errors.Take(20)) +
                     (report.Errors.Count > 20 ? "\n… (extrait des 100 premières anomalies)." : ""),
@@ -337,6 +346,13 @@ public partial class MainWindow : Window
         {
             FinishCleanup();
         }
+    }
+
+    private static long? TryGetFreeBytes(string path)
+    {
+        try { return new VolumeInspector().Inspect(path).FreeBytes; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+            or System.Security.SecurityException) { return null; }
     }
 
     private static string CleanupOutcome(UserTempCleanup.RecycleReport report, string completed) =>
@@ -370,6 +386,25 @@ public partial class MainWindow : Window
     {
         if (e.NewValue is ExplorerNode { Directory: { } directory })
             Navigate(directory);
+    }
+
+    private void OpenExplorerWorkspace(object sender, RoutedEventArgs e)
+    {
+        WorkspaceTabs.SelectedItem = ExplorerWorkspace;
+        ExplorerWorkspace.Focus();
+    }
+
+    private void OpenWindowsStorageSettings(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo("ms-settings:storagesense")
+                { UseShellExecute = true });
+        }
+        catch (Win32Exception)
+        {
+            MessageBox.Show(this, "Impossible d’ouvrir les paramètres de stockage Windows.", "Discoscope");
+        }
     }
 
     private void ScrollExplorerPath(object sender, ScrollChangedEventArgs e)
@@ -433,21 +468,26 @@ public partial class MainWindow : Window
     private void OpenExplorerLocation(object sender, RoutedEventArgs e)
     {
         var row = ExplorerTable.SelectedItem as ExplorerRow;
-        var path = row?.Directory?.Path ?? row?.Parent.Path ?? Model.CurrentDirectory?.Path;
+        bool selectFile = row is { Directory: null };
+        var path = row?.FullPath ?? Model.CurrentDirectory?.Path;
         if (path is null) return;
-        if (!Directory.Exists(path))
+        if (selectFile ? !File.Exists(path) : !Directory.Exists(path))
         {
-            MessageBox.Show(this, "Ce dossier n’est plus accessible.", "Discoscope");
+            MessageBox.Show(this, "Cet emplacement n’est plus accessible.", "Discoscope");
             return;
         }
         try
         {
-            using var process = Process.Start(new ProcessStartInfo
+            var start = new ProcessStartInfo
             {
                 FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"),
-                UseShellExecute = false,
-                ArgumentList = { path }
-            });
+                UseShellExecute = false
+            };
+            if (selectFile)
+                start.Arguments = $"/select,\"{path}\"";
+            else
+                start.ArgumentList.Add(path);
+            using var process = Process.Start(start);
         }
         catch (Win32Exception)
         {

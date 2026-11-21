@@ -1,3 +1,6 @@
 namespace Discoscope.Core.Models;
 
-public sealed record StorageInsight(string Category, string Path, long LogicalBytes, long FileCount, string Guidance, string Risk);
+public sealed record StorageInsight(string Category, string Path, long LogicalBytes, long FileCount, string Guidance, string Risk)
+{
+    public bool IsMeasured { get; init; } = true;
+}

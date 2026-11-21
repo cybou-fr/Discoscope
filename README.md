@@ -2,94 +2,35 @@
 
 ![Icône de Discoscope](src/Discoscope.Desktop/Assets/appicon-128.png)
 
-**Explorez votre disque. Retrouvez votre espace.**
+Discoscope analyse l’espace disque local sous Windows. Il affiche les principaux consommateurs d’espace et permet d’examiner les fichiers temporaires avant de les déplacer vers la Corbeille.
 
-Discoscope est un analyseur local de l'espace disque pour Windows 10/11. Il est développé en **C# / .NET 10 / WPF** avec une architecture MVVM. L'interface est entièrement en français ; le code et les API restent en anglais.
+- **Vue d’ensemble** affiche la capacité du lecteur, les dossiers les plus volumineux et la répartition par type de fichier.
+- **Explorer** donne accès à l’arborescence, à la carte du disque et aux plus grands fichiers. La navigation réutilise les résultats en mémoire.
+- **Nettoyage** présente les fichiers temporaires éligibles par pages de 1 000 et demande une confirmation avant tout déplacement.
+- **Système** présente les mesures disponibles pour les catégories Windows, les avertissements et les rapports DISM et VSS.
 
-## Version actuelle : prototype 0.1.0
+## Compiler et lancer
 
-Le prototype comprend :
-- Analyse réelle et asynchrone des fichiers et dossiers d'un lecteur sélectionné.
-- Progression, annulation et classement des dossiers volumineux.
-- Comptage des fichiers et avertissements d'accès.
-- Analyse des disques en lecture seule ; nettoyage des temporaires uniquement sur confirmation explicite, par déplacement vers la Corbeille. Aucune donnée envoyée sur Internet.
-
-### Démarrage
-
-Prérequis : Windows 10/11 et SDK .NET 10.
+Prérequis : Windows 11 recommandé, Windows 10 lorsque la version de Windows est prise en charge par .NET 10, et SDK .NET 10.
 
 ```powershell
-dotnet restore Discoscope.slnx
 dotnet build Discoscope.slnx -c Release
+dotnet test Discoscope.slnx -c Release
 dotnet run --project src/Discoscope.Desktop -c Release --no-build
 ```
 
-Tests :
+Pour préparer un dossier distribuable pour Windows x64 avec le runtime inclus :
+
 ```powershell
-dotnet test Discoscope.slnx -c Release
+dotnet publish src/Discoscope.Desktop -c Release -r win-x64 --self-contained true -o artifacts/Discoscope-win-x64
 ```
 
-### Limites techniques du prototype
+Lancer `Discoscope.exe` depuis ce dossier. Le dépôt ne fournit pas d’installateur signé.
 
-Les tailles affichées sont les **tailles logiques des fichiers accessibles**, et non l'espace réellement alloué sur le volume. Les liens de réanalyse ne sont pas suivis ; les liens physiques NTFS, les fichiers compressés ou clairsemés et les zones protégées peuvent produire des écarts avec l'espace occupé annoncé par Windows. Certains répertoires nécessitent des privilèges élevés. Les avertissements d'accès sont comptabilisés sans masquer ces limites.
+## Comprendre les mesures
 
-## Développement
+La capacité et l’espace libre sont rapportés par Windows. L’arborescence et la répartition par extension utilisent les tailles logiques des fichiers accessibles. Les fichiers compressés, clairsemés ou référencés par plusieurs liens physiques peuvent expliquer les écarts. Les liens physiques restent comptés par chemin, et les points de réanalyse sont ignorés. Les catégories système peuvent se recouvrir. Les mesures manquantes ou partielles sont signalées.
 
-Modifications exclusivement sur `main`. Pas de CI/CD ni de GitHub Actions. Compilation et tests locaux sur Windows.
+Le déplacement vers la Corbeille porte uniquement sur les fichiers temporaires éligibles et confirmés. Les métadonnées et l’identité sont revérifiées avant le déplacement. Le passage par le Shell reste une opération par chemin. L’espace libre mesuré avant et après est une observation du volume, et la taille logique des fichiers déplacés ne représente pas une quantité d’espace libéré.
 
-Le diagnostic des dossiers temporaires utilisateur et Windows est en lecture seule. La taille détectée ne correspond pas à une quantité supprimable garantie.
-Lorsque le lecteur analysé couvre ces dossiers, le diagnostic réutilise le même instantané. Les emplacements absents de l’instantané sont parcourus séparément.
-
-### Diagnostic Windows
-
-Le bouton **Analyser les composants** lance uniquement `DISM /Online /Cleanup-Image /AnalyzeComponentStore /English`. La sortie brute et les erreurs éventuelles sont affichées. DISM peut nécessiter des droits administrateur. Le bouton **Annuler** interrompt la commande et le délai maximal est de quatre minutes.
-
-### Clichés instantanés VSS
-
-L’onglet **Clichés instantanés · VSS** exécute uniquement `vssadmin list shadowstorage`. La sortie brute permet d’inspecter les associations de stockage des clichés. La commande peut nécessiter des droits administrateur ; une erreur de permissions reste visible. **Aucune suppression, aucun redimensionnement et aucune estimation de gain récupérable** ne sont effectués.
-
-### Carte des dossiers
-
-La carte représente les sous-dossiers immédiats et les fichiers du dossier courant, y compris ceux à la racine du lecteur. Chaque surface correspond à sa part de la taille logique analysée. Les petites entrées sont regroupées dans « Autres » et les éléments de taille nulle restent visibles dans l’Explorateur. Le survol indique le chemin, la taille et le pourcentage. Cliquez sur un dossier pour y entrer ou sur « Retour » pour remonter.
-
-### Explorateur
-
-Sélectionnez un dossier dans l’arborescence ou ouvrez-le dans le tableau par double-clic ou avec Entrée. Retour arrière remonte d’un niveau depuis le tableau. Les en-têtes trient par nom, taille logique ou type. « Copier le chemin » copie le chemin complet et « Ouvrir l’emplacement » affiche le dossier dans l’Explorateur Windows. La carte et l’Explorateur partagent le dossier courant et naviguent dans les résultats en mémoire.
-
-### Fichiers volumineux
-
-Pendant le scan, Discoscope conserve en mémoire les 200 plus grands fichiers accessibles grâce à une file de priorité bornée. L’interface affiche leur chemin, extension et taille logique. Les fichiers non accessibles et les points de réanalyse ne sont pas inclus. Cette liste est un diagnostic : aucune suppression automatique.
-
-### Diagnostic des accès
-
-L’onglet **Avertissements** affiche jusqu’à 2 000 chemins ignorés ou inaccessibles et leur raison. Le compteur global reste distinct de cette limite d’affichage. Le scanner conserve aussi les octets et le nombre de fichiers directement contenus dans chaque dossier, séparément des totaux récursifs, pour préparer un treemap fidèle.
-
-### Interface
-
-La fenêtre comprend **Vue d’ensemble**, **Explorateur**, **Fichiers volumineux**, **Avertissements** et **Système**. Les résultats restent disponibles lors des changements d’onglet. Les diagnostics DISM/VSS sont déclenchés séparément.
-
-## Architecture
-
-- `Discoscope.Core` : modèles et scanner de dossiers, indépendants de WPF.
-- `Discoscope.Desktop` : application WPF, XAML, MVVM, commandes et état.
-- `Discoscope.Core.Tests` : tests de parcours et d'agrégation.
-
-Pour mesurer une analyse, un `ActivityListener` peut écouter `Discoscope.Core.Scan` et `Discoscope.Desktop.Scan`. Les activités distinguent l’énumération, la construction de l’arborescence, l’agrégation, l’inventaire temporaire et la préparation et la publication des résultats.
-
-## Licence
-
-Apache License 2.0. Voir [LICENSE](LICENSE).
-
-### Espace Windows (inventaire ciblé)
-
-L'onglet **Espace Windows** classe des emplacements connus (temporaires utilisateur et Windows, téléchargements, Windows Update, cache de distribution, corbeille) à partir de l'arborescence déjà analysée, sans nouveau parcours disque. Les catégories absentes ou inaccessibles ne sont pas inventées. Les tailles sont logiques et ne constituent pas une estimation de l'espace libérable. Aucune suppression n'est effectuée.
-
-### Nettoyage des fichiers temporaires
-
-L’onglet **Nettoyage** indexe les fichiers temporaires utilisateur ou Windows non modifiés depuis au moins sept jours. L’inventaire temporaire sur disque permet une navigation par pages de **1 000 fichiers**, sans conserver tous les chemins en mémoire.
-
-La sélection de fichiers sur une page ou l’option explicite **Nettoyer toutes les pages** demandent une confirmation avant déplacement vers la Corbeille. Chaque fichier est revérifié (identité Windows, taille, date, chemin et points de réanalyse) avant l’opération ; les dossiers ne sont pas supprimés. La progression, l’annulation et les anomalies sont affichées.
-
-Les tailles sont logiques et ne représentent pas un gain physique garanti : vider la Corbeille reste une action séparée. Relancer l’analyse après nettoyage.
-
-Les tests de nettoyage dans `Discoscope.Desktop.Tests` utilisent des répertoires isolés et simulent le déplacement des fichiers ; ils ne valident pas à eux seuls l’intégration réelle à la Corbeille Windows.
+Les autres catégories utilisent des diagnostics en lecture seule et un accès aux paramètres de stockage Windows. DISM et VSS peuvent nécessiter des droits administrateur. Discoscope ne déclenche aucune maintenance système destructive.

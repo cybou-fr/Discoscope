@@ -17,6 +17,11 @@ public sealed record LargeFileRow(string Path, long Bytes)
 }
 
 public sealed record StorageInsightRow(string Category, string Path, string Size, string Risk, string Guidance);
+public sealed record FileTypeRow(string Name, long Files, long Bytes, double Share)
+{
+    public string SizeLabel => SizeFormatter.Format(Bytes);
+    public string ShareLabel => Share.ToString("P1", CultureInfo.GetCultureInfo("fr-FR"));
+}
 
 public sealed record ScanIssueRow(string Path, string Message);
 
@@ -51,6 +56,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IDiskScanner _scanner;
     private CancellationTokenSource? _scanCancellation;
     private string? _selectedDrive;
+    private int _volumeRequest;
     private bool _isScanning;
     private string _status = "Prêt à analyser un lecteur.";
     private string _filesLabel = "—";
@@ -78,6 +84,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<LargeFileRow> LargestFiles { get; } = [];
     public ObservableCollection<ScanIssueRow> ScanIssues { get; } = [];
     public ObservableCollection<StorageInsightRow> StorageInsights { get; } = [];
+    public ObservableCollection<FileTypeRow> FileTypes { get; } = [];
+    public string CapacityLabel { get; private set; } = "Total : —";
     public IReadOnlyList<TreemapItem> MapEntries { get; private set; } = [];
     public ScanDirectory? CurrentDirectory => _currentDirectory;
     public IReadOnlyList<ExplorerBreadcrumb> ExplorerPath { get; private set; } = [];
@@ -95,7 +103,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string MapPath { get => _mapPath; private set { _mapPath = value; Changed(); } }
     public RelayCommand NavigateBackCommand { get; }
     public ParameterCommand NavigateMapCommand { get; }
-    public string? SelectedDrive { get => _selectedDrive; set { _selectedDrive = value; Changed(); ScanCommand.RaiseCanExecuteChanged(); } }
+    public string? SelectedDrive
+    {
+        get => _selectedDrive;
+        set
+        {
+            if (_selectedDrive == value) return;
+            _selectedDrive = value;
+            CapacityLabel = "Total : —";
+            VolumeLabel = "Occupé : —";
+            FreeLabel = "Libre : —";
+            Changed(nameof(CapacityLabel));
+            Changed();
+            ScanCommand.RaiseCanExecuteChanged();
+            _ = RefreshVolumeAsync(value);
+        }
+    }
     public string Status { get => _status; private set { _status = value; Changed(); } }
     public string FilesLabel { get => _filesLabel; private set { _filesLabel = value; Changed(); } }
     public string SizeLabel { get => _sizeLabel; private set { _sizeLabel = value; Changed(); } }
@@ -125,6 +148,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         NavigateMapCommand = new ParameterCommand(p => _ = ShowDirectoryAsync((ScanDirectory)p!),
             p => !_isScanning && !_synchronizingExplorer && p is ScanDirectory directory
                 && !ReferenceEquals(directory, _currentDirectory) && IsInCurrentScan(directory));
+        _ = RefreshVolumeAsync(_selectedDrive);
     }
 
     private bool IsInCurrentScan(ScanDirectory directory)
@@ -319,6 +343,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private async Task RefreshVolumeAsync(string? root, CancellationToken token = default)
+    {
+        int request = ++_volumeRequest;
+        if (root is null) return;
+
+        VolumeSnapshot? volume = null;
+        try { volume = await Task.Run(() => new VolumeInspector().Inspect(root), token); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+            or System.Security.SecurityException) { }
+
+        if (request != _volumeRequest) return;
+        CapacityLabel = volume is null ? "Total : —" : "Total : " + SizeFormatter.Format(volume.CapacityBytes);
+        VolumeLabel = volume is null ? "Occupé : —" : "Occupé : " + SizeFormatter.Format(volume.UsedBytes);
+        FreeLabel = volume is null ? "Libre : —" : "Libre : " + SizeFormatter.Format(volume.FreeBytes);
+        Changed(nameof(CapacityLabel));
+    }
+
     private async Task ScanAsync()
     {
         if (_isScanning || SelectedDrive is null) return;
@@ -332,6 +373,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LargestFiles.Clear();
         ScanIssues.Clear();
         StorageInsights.Clear();
+        FileTypes.Clear();
         _navigationCancellation?.Cancel();
         MapPath = "Analyse en cours…";
         SetDirectory(null);
@@ -348,16 +390,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         });
         try
         {
-            try
-            {
-                var volume = await Task.Run(() => new VolumeInspector().Inspect(root), activeScan.Token);
-                VolumeLabel = "Occupé : " + SizeFormatter.Format(volume.UsedBytes);
-                FreeLabel = "Libre : " + SizeFormatter.Format(volume.FreeBytes);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
-            {
-                VolumeLabel = FreeLabel = "Indisponible";
-            }
+            await RefreshVolumeAsync(root, activeScan.Token);
             var result = await _scanner.ScanAsync(root, progress, activeScan.Token);
             acceptProgress = false;
             Status = "Analyse des emplacements temporaires…";
@@ -368,25 +401,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     activeScan.Token);
 
             Status = "Préparation des résultats…";
-            (IReadOnlyList<TreemapItem> Map, IReadOnlyList<ScanEntry> Overview) prepared;
+            (IReadOnlyList<TreemapItem> Map, IReadOnlyList<ScanEntry> Overview,
+                IReadOnlyList<StorageInsight> Storage, IReadOnlyList<FileTypeTotal> Types) prepared;
             using (Telemetry.StartActivity("scan.prepare_results"))
                 prepared = await Task.Run(() =>
                     (directory is null ? [] : TreemapLayout.Summarize(directory, activeScan.Token),
-                        result.GetLargestDirectories(300, activeScan.Token)), activeScan.Token);
+                        result.GetLargestDirectories(300, activeScan.Token),
+                        WindowsStorageInsights.Analyze(directory, activeScan.Token),
+                        FileTypeDistribution.Analyze(directory, activeScan.Token)), activeScan.Token);
             activeScan.Token.ThrowIfCancellationRequested();
             using var population = Telemetry.StartActivity("scan.populate_ui");
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
             IssuesLabel = result.Issues.Count.ToString("N0");
-            foreach (var insight in WindowsStorageInsights.Analyze(directory, activeScan.Token))
+            foreach (var type in prepared.Types)
+                FileTypes.Add(new FileTypeRow(type.Name, type.Files, type.LogicalBytes,
+                    result.TotalBytes > 0 ? (double)type.LogicalBytes / result.TotalBytes : 0));
+            foreach (var insight in prepared.Storage)
                 StorageInsights.Add(new StorageInsightRow(insight.Category, insight.Path,
-                    SizeFormatter.Format(insight.LogicalBytes), insight.Risk, insight.Guidance));
+                    insight.IsMeasured ? SizeFormatter.Format(insight.LogicalBytes) : "—", insight.Risk, insight.Guidance));
             foreach (var issue in result.Issues.Take(2000))
                 ScanIssues.Add(new ScanIssueRow(issue.Path, issue.Message));
             foreach (var file in result.LargestFiles)
                 LargestFiles.Add(new LargeFileRow(file.Path, file.Bytes));
             foreach (var temp in temporaryEntries)
-                TemporaryEntries.Add(new TemporaryRow(temp.Name, temp.Path, SizeFormatter.Format(temp.LogicalBytes), temp.FileCount, temp.SkippedCount));
+                TemporaryEntries.Add(new TemporaryRow(temp.Name, temp.Path,
+                    temp.Accessible ? SizeFormatter.Format(temp.LogicalBytes) : "Indisponible", temp.FileCount, temp.SkippedCount));
             SetDirectory(directory);
             SetMapEntries(prepared.Map);
             foreach (var entry in prepared.Overview)
