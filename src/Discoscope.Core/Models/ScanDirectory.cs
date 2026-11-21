@@ -27,6 +27,13 @@ public sealed class ScanDirectory
     public long Bytes { get; internal set; }
     public long FileCount { get; internal set; }
     public long DirectoryCount { get; internal set; }
+    public IEnumerable<ScanDirectory> EnumerateSubtree()
+    {
+        yield return this;
+        foreach (var directory in DirectoryEntries.Traverse(this))
+            yield return directory;
+    }
+
     internal long SkippedCount { get; set; }
     internal bool EnumerationSucceeded { get; set; }
 }

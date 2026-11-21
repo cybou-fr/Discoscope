@@ -214,6 +214,8 @@
                             </ComboBox>
                             <Button Content="Filtrer" Click="ApplyExplorerFilter" Margin="0,0,6,0"/>
                             <Button Content="Effacer" Click="ClearExplorerFilter"/>
+                            <CheckBox x:Name="ExplorerVolumeScope" Content="Tout le lecteur" Margin="10,0,0,0"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
                             <TextBlock x:Name="ExplorerFilterStatus" Margin="8,0,0,0" VerticalAlignment="Center"
                                        AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource MutedBrush}"/>
                         </WrapPanel>
@@ -255,7 +257,13 @@
                                       EnableRowVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                       Sorting="SortExplorer" MouseDoubleClick="OpenExplorerDirectory" PreviewKeyDown="HandleExplorerKey">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Nom" Binding="{Binding Name}" SortMemberPath="Name" Width="*" MinWidth="120"/>
+                                    <DataGridTextColumn Header="Nom" Binding="{Binding Name}" SortMemberPath="Name" Width="*" MinWidth="120">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource TableText}">
+                                                <Setter Property="ToolTip" Value="{Binding FullPath}"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
                                     <DataGridTextColumn ElementStyle="{StaticResource TableNumber}" Header="Taille logique" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="105"/>
                                     <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Type" Binding="{Binding Type}" SortMemberPath="Type" Width="80"/>
                                     <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Modifié le" Binding="{Binding ModifiedLabel}" SortMemberPath="ModifiedUtc" Width="95"/>
@@ -266,7 +274,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Setter Property="Text" Value="Aucun résultat dans ce dossier."/>
+                                        <Setter Property="Text" Value="Aucun résultat."/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasItems, ElementName=ExplorerTable}" Value="False">
                                                 <Setter Property="Visibility" Value="Visible"/>

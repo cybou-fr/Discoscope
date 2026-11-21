@@ -28,14 +28,28 @@ public sealed class ExplorerFilterTests
                 File.SetLastWriteTimeUtc(path, date);
             }
 
+            var nested = root.CreateSubdirectory("nested");
+            string nestedFile = Path.Combine(nested.FullName, "nested-report.pdf");
+            File.WriteAllBytes(nestedFile, new byte[128]);
+            File.SetLastWriteTimeUtc(nestedFile, oldDate);
+
             var scan = await new DiskScanner().ScanAsync(root.FullName, null, default);
-            var rows = new ExplorerRows(scan.Hierarchy!);
+            var hierarchy = Assert.IsType<Discoscope.Core.Models.ScanDirectory>(scan.Hierarchy);
+            var rows = new ExplorerRows(hierarchy);
             var filtered = rows.Filter("REPORT", ".pdf", 16, oldDate.AddDays(1), default);
             var sorted = filtered.Sort(nameof(ExplorerRow.Bytes), ListSortDirection.Descending);
 
             Assert.Equal(new[] { "draft-report.pdf", "annual-report.PDF" },
                 sorted.Cast<ExplorerRow>().Select(row => row.Name));
-            Assert.Equal(5, filtered.Filter("", "", 0, null, default).Count);
+            Assert.Equal(6, filtered.Filter("", "", 0, null, default).Count);
+
+            var volume = new ExplorerRows(Assert.Single(hierarchy.Directories))
+                .Filter("REPORT", ".pdf", 16, oldDate.AddDays(1), default, wholeVolume: true)
+                .Sort(nameof(ExplorerRow.Bytes), ListSortDirection.Descending);
+            Assert.Equal(3, volume.TotalMatches);
+            Assert.Equal(nestedFile, Assert.IsType<ExplorerRow>(volume[0]).FullPath);
+            Assert.Equal(Path.Combine(root.FullName, "draft-report.pdf"),
+                Assert.IsType<ExplorerRow>(volume[1]).FullPath);
         }
         finally
         {

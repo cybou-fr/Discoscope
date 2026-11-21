@@ -64,10 +64,36 @@ public sealed record ExplorerRow(ScanDirectory Parent, int Index, string Name, l
     public string SizeLabel => SizeFormatter.Format(Bytes);
 }
 
-public sealed class ExplorerRows(ScanDirectory directory, int[]? order = null) : IList
+public sealed class ExplorerRows : IList
 {
+    public const int VolumeSearchLimit = 10_000;
+
+    private readonly ScanDirectory directory;
+    private readonly int[]? order;
+    private readonly Entry[]? volumeMatches;
+    public long TotalMatches { get; }
+
+    public ExplorerRows(ScanDirectory directory) : this(directory, null, null, null) { }
+
+    private ExplorerRows(ScanDirectory directory, int[]? order, Entry[]? volumeMatches, long? totalMatches)
+    {
+        this.directory = directory;
+        this.order = order;
+        this.volumeMatches = volumeMatches;
+        TotalMatches = totalMatches ?? Count;
+    }
+
+    private readonly record struct Entry(ScanDirectory Parent, int Index)
+    {
+        public ScanDirectory? Directory => Index < Parent.Directories.Count ? Parent.Directories[Index] : null;
+        public ScanFile File => Index >= Parent.Directories.Count ? Parent.Files[Index - Parent.Directories.Count] : default;
+        public string Name => Directory?.Name ?? File.Name;
+        public long Bytes => Directory?.Bytes ?? File.Bytes;
+    }
+
+    private Entry GetEntry(int index) => volumeMatches is null ? new Entry(directory, index) : volumeMatches[index];
     public int Count => order?.Length ?? SourceCount;
-    private int SourceCount => directory.Directories.Count + directory.Files.Count;
+    private int SourceCount => volumeMatches?.Length ?? directory.Directories.Count + directory.Files.Count;
 
     [AllowNull]
     public object this[int index]
@@ -75,9 +101,11 @@ public sealed class ExplorerRows(ScanDirectory directory, int[]? order = null) :
         get
         {
             int sourceIndex = order?[index] ?? index;
-            var child = GetDirectory(sourceIndex);
-            var file = child is null ? directory.Files[sourceIndex - directory.Directories.Count] : default;
-            return new ExplorerRow(directory, index, child?.Name ?? file.Name, child?.Bytes ?? file.Bytes, child) { ModifiedUtc = file.ModifiedUtc };
+            var entry = GetEntry(sourceIndex);
+            return new ExplorerRow(entry.Parent, index, entry.Name, entry.Bytes, entry.Directory)
+            {
+                ModifiedUtc = entry.File.ModifiedUtc
+            };
         }
         set => throw new NotSupportedException();
     }
@@ -108,40 +136,61 @@ public sealed class ExplorerRows(ScanDirectory directory, int[]? order = null) :
             token.ThrowIfCancellationRequested();
         }
         token.ThrowIfCancellationRequested();
-        return new ExplorerRows(directory, indices);
+        return new ExplorerRows(directory, indices, volumeMatches, TotalMatches);
     }
 
     public ExplorerRows Filter(string name, string extension, long minimumBytes, DateTime? modifiedBefore,
-        CancellationToken token)
+        CancellationToken token, bool wholeVolume = false)
     {
+        token.ThrowIfCancellationRequested();
         if (name.Length == 0 && extension.Length == 0 && minimumBytes == 0 && modifiedBefore is null)
             return new ExplorerRows(directory);
 
-        var matches = new List<int>();
-        for (int index = 0; index < SourceCount; index++)
+        bool Matches(Entry entry)
         {
-            if ((index & 1023) == 0) token.ThrowIfCancellationRequested();
-            string entryName = Name(index);
-            if (!entryName.Contains(name, StringComparison.OrdinalIgnoreCase) || Bytes(index) < minimumBytes)
-                continue;
-            if (extension.Length > 0 && (GetDirectory(index) is not null ||
-                !Path.GetExtension(entryName.AsSpan()).Equals(extension.AsSpan(), StringComparison.OrdinalIgnoreCase)))
-                continue;
-            if (modifiedBefore is { } cutoff && (File(index).ModifiedUtc == default || File(index).ModifiedUtc > cutoff))
-                continue;
-            matches.Add(index);
+            if (!entry.Name.Contains(name, StringComparison.OrdinalIgnoreCase) || entry.Bytes < minimumBytes)
+                return false;
+            if (extension.Length > 0 && (entry.Directory is not null ||
+                !Path.GetExtension(entry.Name.AsSpan()).Equals(extension.AsSpan(), StringComparison.OrdinalIgnoreCase)))
+                return false;
+            return modifiedBefore is not { } cutoff ||
+                entry.File.ModifiedUtc != default && entry.File.ModifiedUtc <= cutoff;
         }
-        return new ExplorerRows(directory, matches.ToArray());
+
+        if (!wholeVolume)
+        {
+            var matches = new List<int>();
+            for (int index = 0; index < directory.Directories.Count + directory.Files.Count; index++)
+            {
+                token.ThrowIfCancellationRequested();
+                if (Matches(new Entry(directory, index))) matches.Add(index);
+            }
+            return new ExplorerRows(directory, matches.ToArray(), null, null);
+        }
+
+        var root = directory;
+        while (root.Parent is { } parent) root = parent;
+        var volume = new List<Entry>();
+        long total = 0;
+        foreach (var folder in root.EnumerateSubtree())
+        {
+            token.ThrowIfCancellationRequested();
+            for (int index = 0; index < folder.Directories.Count + folder.Files.Count; index++)
+            {
+                token.ThrowIfCancellationRequested();
+                var entry = new Entry(folder, index);
+                if (!Matches(entry)) continue;
+                total++;
+                if (volume.Count < VolumeSearchLimit) volume.Add(entry);
+            }
+        }
+        return new ExplorerRows(directory, null, volume.ToArray(), total);
     }
 
-    private ScanFile File(int index) =>
-        GetDirectory(index) is null ? directory.Files[index - directory.Directories.Count] : default;
-
-    private ScanDirectory? GetDirectory(int index) =>
-        index < directory.Directories.Count ? directory.Directories[index] : null;
-
-    private string Name(int index) => GetDirectory(index)?.Name ?? directory.Files[index - directory.Directories.Count].Name;
-    private long Bytes(int index) => GetDirectory(index)?.Bytes ?? directory.Files[index - directory.Directories.Count].Bytes;
+    private ScanFile File(int index) => GetEntry(index).File;
+    private ScanDirectory? GetDirectory(int index) => GetEntry(index).Directory;
+    private string Name(int index) => GetEntry(index).Name;
+    private long Bytes(int index) => GetEntry(index).Bytes;
 
     private int CompareTypes(int left, int right)
     {

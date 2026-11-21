@@ -430,6 +430,7 @@ public partial class MainWindow : Window
         ExplorerExtensionFilter.Clear();
         ExplorerSizeFilter.Clear();
         ExplorerAgeFilter.SelectedIndex = 0;
+        ExplorerVolumeScope.IsChecked = false;
         ExplorerFilterStatus.Text = "";
         foreach (var column in ExplorerTable.Columns) column.SortDirection = null;
     }
@@ -468,11 +469,21 @@ public partial class MainWindow : Window
             2 => DateTime.UtcNow.AddDays(-365),
             _ => null
         };
-        if (await Model.FilterExplorerAsync(ExplorerNameFilter.Text.Trim(),
-            extension.Length == 0 ? "" : "." + extension, minimumMib * bytesPerMib, cutoff))
+        string name = ExplorerNameFilter.Text.Trim();
+        bool wholeVolume = ExplorerVolumeScope.IsChecked == true;
+        if (wholeVolume && name.Length == 0 && extension.Length == 0 && minimumMib == 0 && cutoff is null)
+        {
+            ExplorerFilterStatus.Text = "Ajoutez un critère pour rechercher sur le lecteur.";
+            return;
+        }
+
+        if (await Model.FilterExplorerAsync(name, extension.Length == 0 ? "" : "." + extension,
+            minimumMib * bytesPerMib, cutoff, wholeVolume) && Model.ExplorerItems is { } results)
         {
             foreach (var column in ExplorerTable.Columns) column.SortDirection = null;
-            ExplorerFilterStatus.Text = $"{Model.ExplorerItems?.Count:N0} résultat(s)";
+            ExplorerFilterStatus.Text = results.TotalMatches > results.Count
+                ? $"{results.Count:N0} affichés sur {results.TotalMatches:N0}"
+                : $"{results.TotalMatches:N0} résultat(s)";
         }
     }
 

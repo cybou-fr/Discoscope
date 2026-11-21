@@ -234,8 +234,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Task<bool> SortExplorerAsync(string property, ListSortDirection direction) =>
         TransformExplorerAsync((items, token) => items.Sort(property, direction, token));
 
-    public Task<bool> FilterExplorerAsync(string name, string extension, long minimumBytes, DateTime? modifiedBefore) =>
-        TransformExplorerAsync((items, token) => items.Filter(name, extension, minimumBytes, modifiedBefore, token));
+    public Task<bool> FilterExplorerAsync(string name, string extension, long minimumBytes, DateTime? modifiedBefore, bool wholeVolume) =>
+        TransformExplorerAsync((items, token) => items.Filter(name, extension, minimumBytes, modifiedBefore, token, wholeVolume));
 
     private async Task<bool> TransformExplorerAsync(Func<ExplorerRows, CancellationToken, ExplorerRows> transform)
     {
