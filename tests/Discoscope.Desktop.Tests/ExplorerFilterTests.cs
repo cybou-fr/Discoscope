@@ -63,6 +63,7 @@ public sealed class ExplorerFilterTests
             string nestedFile = Path.Combine(nested.FullName, "nested-report.pdf");
             File.WriteAllBytes(nestedFile, new byte[128]);
             File.SetLastWriteTimeUtc(nestedFile, oldDate);
+            File.WriteAllBytes(Path.Combine(nested.FullName, "photo.PNG"), new byte[256]);
 
             var scan = await new DiskScanner().ScanAsync(root.FullName, null, default);
             var hierarchy = Assert.IsType<Discoscope.Core.Models.ScanDirectory>(scan.Hierarchy);
@@ -90,6 +91,15 @@ public sealed class ExplorerFilterTests
                 .Single(group => group.AgeBand == FileAgeBand.Intermediate);
             Assert.Equal(ageTotal.Files, intermediate.TotalMatches);
             Assert.Equal(ageTotal.LogicalBytes, intermediate.Cast<ExplorerRow>().Sum(row => row.Bytes));
+
+            var images = new ExplorerRows(hierarchy).Filter("", "", 0, null, default,
+                wholeVolume: true, typeCategory: FileTypeCategory.Images);
+            var imageTotal = FileTypeDistribution.Analyze(hierarchy)
+                .Single(group => group.TypeCategory == FileTypeCategory.Images);
+            Assert.Equal(imageTotal.Files, images.TotalMatches);
+            var image = Assert.Single(images.Cast<ExplorerRow>());
+            Assert.Equal("photo.PNG", image.Name);
+            Assert.Equal(imageTotal.LogicalBytes, image.Bytes);
         }
         finally
         {

@@ -20,6 +20,7 @@ public sealed record StorageInsightRow(string Category, string Path, string Size
 public sealed record FileTypeRow(string Name, long Files, long Bytes, double Share)
 {
     public FileAgeBand? AgeBand { get; init; }
+    public FileTypeCategory? TypeCategory { get; init; }
     public string SizeLabel => SizeFormatter.Format(Bytes);
     public string ShareLabel => Share.ToString("P1", CultureInfo.GetCultureInfo("fr-FR"));
 }
@@ -238,11 +239,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         TransformExplorerAsync((items, token) => items.Sort(property, direction, token));
 
     public Task<bool> FilterExplorerAsync(string name, string extension, long minimumBytes, DateTime? modifiedBefore,
-        bool wholeVolume, FileAgeBand? ageBand)
+        bool wholeVolume, FileAgeBand? ageBand, FileTypeCategory? typeCategory)
     {
         var reference = FileAgeReferenceUtc;
         return TransformExplorerAsync((items, token) =>
-            items.Filter(name, extension, minimumBytes, modifiedBefore, token, wholeVolume, ageBand, reference));
+            items.Filter(name, extension, minimumBytes, modifiedBefore, token, wholeVolume, ageBand, reference, typeCategory));
     }
 
     private async Task<bool> TransformExplorerAsync(Func<ExplorerRows, CancellationToken, ExplorerRows> transform)
@@ -433,7 +434,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IssuesLabel = result.Issues.Count.ToString("N0");
             foreach (var type in prepared.Distribution.Types)
                 FileTypes.Add(new FileTypeRow(type.Name, type.Files, type.LogicalBytes,
-                    result.TotalBytes > 0 ? (double)type.LogicalBytes / result.TotalBytes : 0));
+                    result.TotalBytes > 0 ? (double)type.LogicalBytes / result.TotalBytes : 0)
+                {
+                    TypeCategory = type.TypeCategory
+                });
             FileAgeReferenceUtc = result.CompletedAt.UtcDateTime;
             foreach (var age in prepared.Distribution.Ages)
                 FileAges.Add(new FileTypeRow(age.Name, age.Files, age.LogicalBytes,

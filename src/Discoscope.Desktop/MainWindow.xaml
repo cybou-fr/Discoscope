@@ -123,7 +123,7 @@
                                 </ComboBox>
                             </DockPanel>
                             <DataGrid x:Name="FileTypesTable" Grid.Row="1"
-                                      MouseDoubleClick="OpenAgeDistributionRow" PreviewKeyDown="OpenAgeDistributionRowWithKey"
+                                      MouseDoubleClick="OpenDistributionRow" PreviewKeyDown="OpenDistributionRowWithKey"
                                       Foreground="{StaticResource TextBrush}"
                                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                                       Background="{StaticResource PanelBrush}" RowBackground="{StaticResource PanelBrush}"
@@ -242,6 +242,8 @@
                             <Button Content="Effacer" Click="ClearExplorerFilter"/>
                             <CheckBox x:Name="ExplorerVolumeScope" Content="Tout le lecteur" Margin="10,0,0,0"
                                       VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                            <TextBlock x:Name="ExplorerTypeScope" Margin="10,0,0,0" VerticalAlignment="Center"
+                                       Visibility="Collapsed" Foreground="{StaticResource TextBrush}"/>
                             <TextBlock x:Name="ExplorerFilterStatus" Margin="8,0,0,0" VerticalAlignment="Center"
                                        AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource MutedBrush}"/>
                         </WrapPanel>

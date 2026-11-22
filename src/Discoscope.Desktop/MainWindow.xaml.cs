@@ -15,6 +15,7 @@ namespace Discoscope.Desktop;
 public partial class MainWindow : Window
 {
     private bool _cleanupBusy;
+    private FileTypeCategory? _explorerTypeCategory;
     private CancellationTokenSource? _allocationCancellation;
     private bool _closeAfterCleanup;
     private int _cleanupProgressVersion;
@@ -408,9 +409,9 @@ public partial class MainWindow : Window
 
     private async void OpenExplorerWorkspace(object sender, RoutedEventArgs e)
     {
-        if (FileTypesTable.SelectedItem is FileTypeRow { AgeBand: { } band })
+        if (FileTypesTable.SelectedItem is FileTypeRow row)
         {
-            await OpenAgeBandAsync(band);
+            await OpenDistributionAsync(row);
             return;
         }
         WorkspaceTabs.SelectedItem = ExplorerWorkspace;
@@ -539,6 +540,8 @@ public partial class MainWindow : Window
         ExplorerAgeFilter.SelectedIndex = 0;
         ExplorerVolumeScope.IsChecked = false;
         ExplorerFilterStatus.Text = "";
+        _explorerTypeCategory = null;
+        ExplorerTypeScope.Visibility = Visibility.Collapsed;
         foreach (var column in ExplorerTable.Columns) column.SortDirection = null;
     }
 
@@ -557,25 +560,32 @@ public partial class MainWindow : Window
         await FilterExplorerAsync();
     }
 
-    private async void OpenAgeDistributionRow(object sender, MouseButtonEventArgs e)
+    private async void OpenDistributionRow(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is DependencyObject source &&
             ItemsControl.ContainerFromElement(FileTypesTable, source) is DataGridRow
-            { Item: FileTypeRow { AgeBand: { } band } })
-            await OpenAgeBandAsync(band);
+            { Item: FileTypeRow row })
+            await OpenDistributionAsync(row);
     }
 
-    private async void OpenAgeDistributionRowWithKey(object sender, KeyEventArgs e)
+    private async void OpenDistributionRowWithKey(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter || FileTypesTable.SelectedItem is not FileTypeRow { AgeBand: { } band }) return;
+        if (e.Key != Key.Enter || FileTypesTable.SelectedItem is not FileTypeRow row) return;
         e.Handled = true;
-        await OpenAgeBandAsync(band);
+        await OpenDistributionAsync(row);
     }
 
-    private async Task OpenAgeBandAsync(FileAgeBand ageBand)
+    private async Task OpenDistributionAsync(FileTypeRow row)
     {
         ResetExplorerFilters();
-        ExplorerAgeFilter.SelectedValue = ageBand;
+        if (row.AgeBand is { } ageBand)
+            ExplorerAgeFilter.SelectedValue = ageBand;
+        if (row.TypeCategory is { } category)
+        {
+            _explorerTypeCategory = category;
+            ExplorerTypeScope.Text = $"Type : {row.Name}";
+            ExplorerTypeScope.Visibility = Visibility.Visible;
+        }
         ExplorerVolumeScope.IsChecked = true;
         WorkspaceTabs.SelectedItem = ExplorerWorkspace;
         await FilterExplorerAsync();
@@ -599,14 +609,14 @@ public partial class MainWindow : Window
             ? (Model.FileAgeReferenceUtc ?? DateTime.UtcNow).AddDays(-30) : null;
         string name = ExplorerNameFilter.Text.Trim();
         bool wholeVolume = ExplorerVolumeScope.IsChecked == true;
-        if (wholeVolume && name.Length == 0 && extension.Length == 0 && minimumMib == 0 && cutoff is null && ageBand is null)
+        if (wholeVolume && name.Length == 0 && extension.Length == 0 && minimumMib == 0 && cutoff is null && ageBand is null && _explorerTypeCategory is null)
         {
             ExplorerFilterStatus.Text = "Ajoutez un critère pour rechercher sur le lecteur.";
             return;
         }
 
         if (await Model.FilterExplorerAsync(name, extension.Length == 0 ? "" : "." + extension,
-            minimumMib * bytesPerMib, cutoff, wholeVolume, ageBand) && Model.ExplorerItems is { } results)
+            minimumMib * bytesPerMib, cutoff, wholeVolume, ageBand, _explorerTypeCategory) && Model.ExplorerItems is { } results)
         {
             foreach (var column in ExplorerTable.Columns) column.SortDirection = null;
             ExplorerFilterStatus.Text = results.TotalMatches > results.Count

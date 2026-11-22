@@ -21,8 +21,10 @@ public sealed class FileTypeDistributionTests
 
         Assert.Equal(5, types.Sum(type => type.Files));
         Assert.Equal(38, types.Sum(type => type.LogicalBytes));
-        Assert.Equal(new FileTypeTotal("Images", 2, 15), types.Single(type => type.Name == "Images"));
-        Assert.Equal(new FileTypeTotal("Autres extensions", 1, 0), types.Single(type => type.Name == "Autres extensions"));
+        Assert.Equal(new FileTypeTotal("Images", 2, 15) { TypeCategory = FileTypeCategory.Images },
+            types.Single(type => type.Name == "Images"));
+        Assert.Equal(new FileTypeTotal("Autres extensions", 1, 0) { TypeCategory = FileTypeCategory.Other },
+            types.Single(type => type.Name == "Autres extensions"));
         Assert.Equal("Documents", types[0].Name);
     }
 

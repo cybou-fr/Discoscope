@@ -4,7 +4,7 @@
 
 Discoscope analyse l’espace disque local sous Windows. Il affiche les principaux consommateurs d’espace et permet d’examiner les fichiers temporaires avant de les déplacer vers la Corbeille.
 
-- **Vue d’ensemble** affiche la capacité du lecteur, les dossiers les plus volumineux et la répartition des fichiers par type ou par date de modification. Sélectionnez une tranche d’ancienneté puis cliquez sur **Explorer** pour afficher ses fichiers.
+- **Vue d’ensemble** affiche la capacité du lecteur, les dossiers les plus volumineux et la répartition des fichiers par type ou par date de modification. Sélectionnez une catégorie de fichiers ou une tranche d’ancienneté puis cliquez sur **Explorer** pour afficher ses fichiers.
 - **Explorer** réunit l’arborescence, le tableau et la carte du dossier courant. La recherche par nom, extension, taille logique minimale ou date de modification utilise les résultats en mémoire. L’option **Tout le lecteur** affiche jusqu’à 10 000 correspondances et indique leur nombre total. Le tri s’applique à toutes les correspondances avant la limite d’affichage. Survolez un nom pour voir son chemin. La carte conserve la vue complète du dossier courant et les 200 plus grands fichiers du lecteur sont accessibles sous la carte.
 - **Nettoyage** présente les fichiers temporaires éligibles par pages de 1 000 et demande une confirmation avant tout déplacement.
 - **Système** présente les mesures disponibles pour les catégories Windows, les avertissements et les rapports DISM et VSS.

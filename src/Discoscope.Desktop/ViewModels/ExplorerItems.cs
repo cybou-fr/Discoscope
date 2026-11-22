@@ -139,10 +139,11 @@ public sealed class ExplorerRows : IList
 
     public ExplorerRows Filter(string name, string extension, long minimumBytes, DateTime? modifiedBefore,
         CancellationToken token, bool wholeVolume = false, FileAgeBand? ageBand = null,
-        DateTime? ageReferenceUtc = null)
+        DateTime? ageReferenceUtc = null, FileTypeCategory? typeCategory = null)
     {
         token.ThrowIfCancellationRequested();
-        if (name.Length == 0 && extension.Length == 0 && minimumBytes == 0 && modifiedBefore is null && ageBand is null)
+        if (name.Length == 0 && extension.Length == 0 && minimumBytes == 0 && modifiedBefore is null &&
+            ageBand is null && typeCategory is null)
             return new ExplorerRows(directory);
 
         var reference = ageReferenceUtc ?? DateTime.UtcNow;
@@ -155,9 +156,12 @@ public sealed class ExplorerRows : IList
             if (extension.Length > 0 && (entry.Directory is not null ||
                 !Path.GetExtension(entry.Name.AsSpan()).Equals(extension.AsSpan(), StringComparison.OrdinalIgnoreCase)))
                 return false;
-            if (ageBand is { } band)
-                return entry.Directory is null &&
-                    FileTypeDistribution.ClassifyAge(entry.File.ModifiedUtc, recentCutoff, oldCutoff) == band;
+            if (typeCategory is { } category && (entry.Directory is not null ||
+                FileTypeDistribution.ClassifyType(entry.Name) != category))
+                return false;
+            if (ageBand is { } band && (entry.Directory is not null ||
+                FileTypeDistribution.ClassifyAge(entry.File.ModifiedUtc, recentCutoff, oldCutoff) != band))
+                return false;
             return modifiedBefore is not { } cutoff ||
                 entry.File.ModifiedUtc != default && entry.File.ModifiedUtc <= cutoff;
         }
