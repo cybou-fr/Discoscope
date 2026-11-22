@@ -20,13 +20,16 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-            <Image Source="Assets/appicon-128.png" Width="40" Height="40" Margin="0,0,11,0"/>
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="Discoscope" FontSize="25" FontWeight="SemiBold"/>
-                <TextBlock Text="Analyse de l’espace disque" Foreground="{StaticResource MutedBrush}"/>
+        <DockPanel Margin="0,0,0,14">
+            <Button DockPanel.Dock="Right" Content="À propos" Click="ShowAbout" VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal">
+                <Image Source="Assets/appicon-128.png" Width="40" Height="40" Margin="0,0,11,0"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Discoscope" FontSize="25" FontWeight="SemiBold"/>
+                    <TextBlock Text="Analyse de l’espace disque" Foreground="{StaticResource MutedBrush}"/>
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
+        </DockPanel>
 
         <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Margin="0,0,0,10">
             <DockPanel LastChildFill="True">
@@ -288,6 +291,9 @@
                                                 <DataTrigger Binding="{Binding IsChecked, ElementName=LargestAllocatedFiles}" Value="True">
                                                     <Setter Property="Height" Value="3*"/>
                                                 </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsChecked, ElementName=LargestAllocatedFolders}" Value="True">
+                                                    <Setter Property="Height" Value="3*"/>
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </RowDefinition.Style>
@@ -366,8 +372,11 @@
                             <WrapPanel Grid.Row="3" Grid.Column="2" Margin="0,4,0,4">
                                 <ToggleButton x:Name="LargestLogicalFiles" Content="Plus grands fichiers du lecteur"
                                               Click="ToggleFileRanking" Padding="8,3" Margin="0,0,6,0"/>
-                                <ToggleButton x:Name="LargestAllocatedFiles" Content="Classement par taille allouée"
-                                              Click="ToggleFileRanking" Padding="8,3" Visibility="Collapsed"/>
+                                <ToggleButton x:Name="LargestAllocatedFiles" Content="Fichiers par taille allouée"
+                                              Click="ToggleFileRanking" Padding="8,3" Margin="0,0,6,0" Visibility="Collapsed"/>
+                                <ToggleButton x:Name="LargestAllocatedFolders" Content="Sous-dossiers par taille allouée"
+                                              Click="ToggleFileRanking" Padding="8,3" Visibility="Collapsed"
+                                              ToolTip="Un fichier lié dans plusieurs sous-dossiers compte une fois dans chacun. Les lignes ne s’additionnent donc pas toujours."/>
                             </WrapPanel>
                             <Grid Grid.Row="4" Grid.Column="2" ClipToBounds="True">
                                 <DataGrid x:Name="LargestFilesTable"  ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False"
@@ -398,6 +407,25 @@
                                                             SortMemberPath="AllocatedBytes" ElementStyle="{StaticResource TableNumber}" Width="125"/>
                                         <DataGridTextColumn Header="Taille logique" Binding="{Binding LogicalLabel}"
                                                             SortMemberPath="LogicalBytes" ElementStyle="{StaticResource TableNumber}" Width="125"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <DataGrid x:Name="LargestAllocatedFoldersTable" AutoGenerateColumns="False"
+                                          Visibility="{Binding IsChecked, ElementName=LargestAllocatedFolders, Converter={StaticResource BoolToVisibility}}"
+                                          AutomationProperties.Name="Sous-dossiers classés par taille allouée"
+                                          AutomationProperties.HelpText="Un fichier lié dans plusieurs sous-dossiers compte une fois dans chacun."
+                                          IsReadOnly="True" Background="#1A2230" Foreground="White"
+                                          RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
+                                          BorderThickness="0" GridLinesVisibility="None" CanUserAddRows="False"
+                                          MouseDoubleClick="OpenAllocatedFolder" PreviewKeyDown="OpenAllocatedFolderWithKey">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Sous-dossier" Binding="{Binding Folder.Directory.Name}"
+                                                            ElementStyle="{StaticResource TableText}" Width="*"/>
+                                        <DataGridTextColumn Header="Taille allouée" Binding="{Binding AllocatedLabel}"
+                                                            SortMemberPath="Folder.AllocatedBytes" ElementStyle="{StaticResource TableNumber}" Width="125"/>
+                                        <DataGridTextColumn Header="Taille logique" Binding="{Binding LogicalLabel}"
+                                                            SortMemberPath="Folder.LogicalBytes" ElementStyle="{StaticResource TableNumber}" Width="125"/>
+                                        <DataGridTextColumn Header="Mesure" Binding="{Binding CoverageLabel}"
+                                                            ElementStyle="{StaticResource TableText}" Width="88"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </Grid>

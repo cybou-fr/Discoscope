@@ -475,18 +475,50 @@ public partial class MainWindow : Window
             Model.NavigateMapCommand.Execute(directory);
     }
 
+    private void ShowAbout(object sender, RoutedEventArgs e) =>
+        MessageBox.Show(this, "Discoscope\nAnalyse de l’espace disque\n\nAuteur : Stanislav SAVELIEV",
+            "À propos de Discoscope", MessageBoxButton.OK, MessageBoxImage.Information);
+
     private sealed record AllocatedFileRow(string Path, long AllocatedBytes, long LogicalBytes)
     {
         public string AllocatedLabel => SizeFormatter.Format(AllocatedBytes);
         public string LogicalLabel => SizeFormatter.Format(LogicalBytes);
     }
 
+    private sealed record AllocatedFolderRow(AllocatedFolder Folder)
+    {
+        public string AllocatedLabel => SizeFormatter.Format(Folder.AllocatedBytes);
+        public string LogicalLabel => SizeFormatter.Format(Folder.LogicalBytes);
+        public string CoverageLabel => Folder.IsPartial ? "Partielle" : "Complète";
+    }
+
+    private void OpenAllocatedFolder(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source &&
+            ItemsControl.ContainerFromElement(LargestAllocatedFoldersTable, source) is DataGridRow
+            { Item: AllocatedFolderRow row })
+            Navigate(row.Folder.Directory);
+    }
+
+    private void OpenAllocatedFolderWithKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || LargestAllocatedFoldersTable.SelectedItem is not AllocatedFolderRow row) return;
+        e.Handled = true;
+        Navigate(row.Folder.Directory);
+    }
+
     private void ToggleFileRanking(object sender, RoutedEventArgs e)
     {
-        if (ReferenceEquals(sender, LargestLogicalFiles))
-            LargestAllocatedFiles.IsChecked = false;
-        else
-            LargestLogicalFiles.IsChecked = false;
+        if (!ReferenceEquals(sender, LargestLogicalFiles)) LargestLogicalFiles.IsChecked = false;
+        if (!ReferenceEquals(sender, LargestAllocatedFiles)) LargestAllocatedFiles.IsChecked = false;
+        if (!ReferenceEquals(sender, LargestAllocatedFolders)) LargestAllocatedFolders.IsChecked = false;
+    }
+
+    private void ClearAllocatedRankings()
+    {
+        LargestAllocatedFiles.IsChecked = LargestAllocatedFolders.IsChecked = false;
+        LargestAllocatedFiles.Visibility = LargestAllocatedFolders.Visibility = Visibility.Collapsed;
+        LargestAllocatedFilesTable.ItemsSource = LargestAllocatedFoldersTable.ItemsSource = null;
     }
 
     private void ResetAllocatedSpace()
@@ -496,9 +528,7 @@ public partial class MainWindow : Window
         AllocatedSpaceButton.Content = "Mesurer l’espace alloué";
         AllocatedSpaceButton.IsEnabled = true;
         AllocatedSpaceStatus.Text = "";
-        LargestAllocatedFilesTable.ItemsSource = null;
-        LargestAllocatedFiles.IsChecked = false;
-        LargestAllocatedFiles.Visibility = Visibility.Collapsed;
+        ClearAllocatedRankings();
     }
 
     private async void MeasureAllocatedSpace(object sender, RoutedEventArgs e)
@@ -514,9 +544,7 @@ public partial class MainWindow : Window
 
         using var cancellation = new CancellationTokenSource();
         _allocationCancellation = cancellation;
-        LargestAllocatedFilesTable.ItemsSource = null;
-        LargestAllocatedFiles.IsChecked = false;
-        LargestAllocatedFiles.Visibility = Visibility.Collapsed;
+        ClearAllocatedRankings();
         AllocatedSpaceButton.Content = "Annuler la mesure";
         AllocatedSpaceStatus.Text = "Mesure des fichiers indexés en cours…";
         var progress = new Progress<AllocatedSpaceProgress>(update =>
@@ -537,6 +565,12 @@ public partial class MainWindow : Window
                 LargestAllocatedFilesTable.ItemsSource = result.LargestFiles.Select(file =>
                     new AllocatedFileRow(file.Path, file.AllocatedBytes, file.LogicalBytes)).ToArray();
                 LargestAllocatedFiles.Visibility = Visibility.Visible;
+            }
+            if (result.LargestFolders.Count > 0)
+            {
+                LargestAllocatedFoldersTable.ItemsSource = result.LargestFolders.Select(folder =>
+                    new AllocatedFolderRow(folder)).ToArray();
+                LargestAllocatedFolders.Visibility = Visibility.Visible;
             }
             status = result.MeasuredPaths == 0 && result.UnavailablePaths > 0
                 ? $"Mesure indisponible · {result.UnavailablePaths:N0} chemin(s) non mesuré(s)"

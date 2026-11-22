@@ -33,6 +33,8 @@ La capacité et l’espace libre sont rapportés par Windows. L’arborescence e
 
 Dans **Explorer**, **Mesurer l’espace alloué** interroge les métadonnées NTFS des fichiers indexés du dossier courant et de ses sous-dossiers. La mesure est annulable. Elle présente jusqu’à 200 fichiers classés par taille allouée, avec leur taille logique. Les liens physiques répétés sont comptés une fois dans ce périmètre et les chemins devenus indisponibles sont signalés. Le résultat couvre le flux principal des fichiers mesurés et exclut notamment les métadonnées du volume et les chemins absents de l’index. Un fichier partagé avec un autre dossier peut apparaître dans les mesures des deux dossiers.
 
+Le même passage classe jusqu’à 200 sous-dossiers directs, en incluant leurs descendants. Chaque ligne déduplique les liens dans son propre périmètre et indique si la mesure est partielle. Les lignes peuvent se recouvrir lorsque des liens physiques relient des sous-dossiers différents.
+
 Le déplacement vers la Corbeille porte uniquement sur les fichiers temporaires éligibles et confirmés. Les métadonnées et l’identité sont revérifiées avant le déplacement. Le passage par le Shell reste une opération par chemin. L’espace libre mesuré avant et après est une observation du volume, et la taille logique des fichiers déplacés ne représente pas une quantité d’espace libéré.
 
 Les autres catégories utilisent des diagnostics en lecture seule et un accès aux paramètres de stockage Windows. DISM et VSS peuvent nécessiter des droits administrateur. Discoscope ne déclenche aucune maintenance système destructive.

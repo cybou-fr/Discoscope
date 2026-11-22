@@ -16,12 +16,17 @@ public sealed class AllocatedSpaceInspectorTests
             var drive = new DriveInfo(root.Root.FullName);
             if (drive.DriveType != DriveType.Fixed || drive.DriveFormat != "NTFS") return;
 
-            string original = Path.Combine(root.FullName, "original.bin");
-            string link = Path.Combine(root.FullName, "link.bin");
-            string missing = Path.Combine(root.FullName, "missing.bin");
+            var first = root.CreateSubdirectory("first");
+            var second = root.CreateSubdirectory("second");
+            var nested = first.CreateSubdirectory("nested");
+            string original = Path.Combine(nested.FullName, "original.bin");
+            string link = Path.Combine(second.FullName, "link.bin");
+            string siblingLink = Path.Combine(first.FullName, "sibling-link.bin");
+            string missing = Path.Combine(second.FullName, "missing.bin");
             File.WriteAllBytes(original, new byte[8192]);
             File.WriteAllBytes(missing, new byte[8192]);
             Assert.True(CreateHardLink(link, original, IntPtr.Zero));
+            Assert.True(CreateHardLink(siblingLink, original, IntPtr.Zero));
 
             var scan = await new DiskScanner().ScanAsync(root.FullName, null, default);
             File.Delete(missing);
@@ -29,12 +34,19 @@ public sealed class AllocatedSpaceInspectorTests
             var result = await inspector.InspectAsync(scan.Hierarchy!);
             Assert.Equal(1, result.MeasuredPaths);
             Assert.Equal(1, result.UnavailablePaths);
-            Assert.Equal(1, result.DuplicateLinks);
+            Assert.Equal(2, result.DuplicateLinks);
             Assert.Equal(8192, result.MeasuredLogicalBytes);
             Assert.InRange(result.Bytes, 8192, 65536);
             var ranked = Assert.Single(result.LargestFiles);
             Assert.Equal(result.Bytes, ranked.AllocatedBytes);
             Assert.Equal(8192, ranked.LogicalBytes);
+            Assert.Equal(2, result.LargestFolders.Count);
+            Assert.All(result.LargestFolders, folder =>
+            {
+                Assert.Equal(result.Bytes, folder.AllocatedBytes);
+                Assert.Equal(8192, folder.LogicalBytes);
+                Assert.Equal(folder.Directory.Name == "second", folder.IsPartial);
+            });
 
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
