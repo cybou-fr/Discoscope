@@ -4,7 +4,10 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Discoscope.Core.Services;
 
-public sealed record AllocatedSpaceResult(long Bytes, long MeasuredPaths, long UnavailablePaths, long DuplicateLinks);
+public sealed record AllocatedSpaceResult(long Bytes, long MeasuredPaths, long UnavailablePaths, long DuplicateLinks)
+{
+    public long MeasuredLogicalBytes { get; init; }
+}
 
 public sealed class AllocatedSpaceInspector
 {
@@ -20,7 +23,7 @@ public sealed class AllocatedSpaceInspector
             throw new PlatformNotSupportedException();
 
         var linkedFiles = new HashSet<FileIdentity>();
-        long bytes = 0, measured = 0, unavailable = 0, duplicates = 0;
+        long bytes = 0, logicalBytes = 0, measured = 0, unavailable = 0, duplicates = 0;
         foreach (var directory in root.EnumerateSubtree())
         {
             token.ThrowIfCancellationRequested();
@@ -69,10 +72,11 @@ public sealed class AllocatedSpaceInspector
                     }
                 }
                 bytes = checked(bytes + allocation);
+                logicalBytes = checked(logicalBytes + standard.EndOfFile);
                 measured++;
             }
         }
-        return new(bytes, measured, unavailable, duplicates);
+        return new(bytes, measured, unavailable, duplicates) { MeasuredLogicalBytes = logicalBytes };
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -459,7 +459,8 @@ public partial class MainWindow : Window
             var result = await new AllocatedSpaceInspector().InspectAsync(directory, cancellation.Token);
             status = result.MeasuredPaths == 0 && result.UnavailablePaths > 0
                 ? $"Mesure indisponible · {result.UnavailablePaths:N0} chemin(s) non mesuré(s)"
-                : $"{SizeFormatter.Format(result.Bytes)} alloués · {result.MeasuredPaths:N0} fichier(s) mesuré(s) · " +
+                : $"{SizeFormatter.Format(result.Bytes)} alloués / {SizeFormatter.Format(result.MeasuredLogicalBytes)} logiques " +
+                  $"pour {result.MeasuredPaths:N0} fichier(s) mesuré(s) · " +
                   $"{result.DuplicateLinks:N0} lien(s) en double · {result.UnavailablePaths:N0} chemin(s) non mesuré(s)";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
