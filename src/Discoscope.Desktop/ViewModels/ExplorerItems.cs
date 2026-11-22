@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Discoscope.Core.Models;
+using Discoscope.Core.Services;
 
 namespace Discoscope.Desktop.ViewModels;
 
@@ -137,12 +138,16 @@ public sealed class ExplorerRows : IList
     }
 
     public ExplorerRows Filter(string name, string extension, long minimumBytes, DateTime? modifiedBefore,
-        CancellationToken token, bool wholeVolume = false)
+        CancellationToken token, bool wholeVolume = false, FileAgeBand? ageBand = null,
+        DateTime? ageReferenceUtc = null)
     {
         token.ThrowIfCancellationRequested();
-        if (name.Length == 0 && extension.Length == 0 && minimumBytes == 0 && modifiedBefore is null)
+        if (name.Length == 0 && extension.Length == 0 && minimumBytes == 0 && modifiedBefore is null && ageBand is null)
             return new ExplorerRows(directory);
 
+        var reference = ageReferenceUtc ?? DateTime.UtcNow;
+        var recentCutoff = reference.AddDays(-30);
+        var oldCutoff = reference.AddDays(-365);
         bool Matches(Entry entry)
         {
             if (!entry.Name.Contains(name, StringComparison.OrdinalIgnoreCase) || entry.Bytes < minimumBytes)
@@ -150,6 +155,9 @@ public sealed class ExplorerRows : IList
             if (extension.Length > 0 && (entry.Directory is not null ||
                 !Path.GetExtension(entry.Name.AsSpan()).Equals(extension.AsSpan(), StringComparison.OrdinalIgnoreCase)))
                 return false;
+            if (ageBand is { } band)
+                return entry.Directory is null &&
+                    FileTypeDistribution.ClassifyAge(entry.File.ModifiedUtc, recentCutoff, oldCutoff) == band;
             return modifiedBefore is not { } cutoff ||
                 entry.File.ModifiedUtc != default && entry.File.ModifiedUtc <= cutoff;
         }

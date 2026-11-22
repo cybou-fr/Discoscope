@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Discoscope.Desktop.Controls"
         xmlns:vm="clr-namespace:Discoscope.Desktop.ViewModels"
+        xmlns:analysis="clr-namespace:Discoscope.Core.Services;assembly=Discoscope.Core"
         Foreground="{StaticResource TextBrush}" FontFamily="Segoe UI"
         Title="Discoscope — Analyse de l'espace disque" Icon="Assets/appicon.ico" Width="1200" Height="790"
         MinWidth="900" MinHeight="620" Background="{StaticResource CanvasBrush}"
@@ -122,6 +123,8 @@
                                 </ComboBox>
                             </DockPanel>
                             <DataGrid x:Name="FileTypesTable" Grid.Row="1"
+                                      MouseDoubleClick="OpenAgeDistributionRow" PreviewKeyDown="OpenAgeDistributionRowWithKey"
+                                      Foreground="{StaticResource TextBrush}"
                                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                                       Background="{StaticResource PanelBrush}" RowBackground="{StaticResource PanelBrush}"
                                       AlternatingRowBackground="{StaticResource SurfaceBrush}" GridLinesVisibility="None" RowHeight="34"
@@ -226,11 +229,14 @@
                             <TextBlock Text="Min. (Mio)" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <TextBox x:Name="ExplorerSizeFilter" Width="48" Margin="0,0,9,0" ToolTip="Taille minimale en Mio"
                                      AutomationProperties.Name="Taille minimale en Mio" KeyDown="ExplorerFilterKey"/>
-                            <ComboBox x:Name="ExplorerAgeFilter" SelectedIndex="0" Width="163" Margin="0,0,6,0"
+                            <ComboBox x:Name="ExplorerAgeFilter" SelectedIndex="0" SelectedValuePath="Tag" Width="163" Margin="0,0,6,0"
                                       AutomationProperties.Name="Ancienneté de modification">
                                 <ComboBoxItem Content="Toutes les dates"/>
-                                <ComboBoxItem Content="Plus de 30 jours" Tag="30"/>
-                                <ComboBoxItem Content="Plus d’un an" Tag="365"/>
+                                <ComboBoxItem Content="30 jours ou moins" Tag="{x:Static analysis:FileAgeBand.Recent}"/>
+                                <ComboBoxItem Content="31 à 365 jours" Tag="{x:Static analysis:FileAgeBand.Intermediate}"/>
+                                <ComboBoxItem Content="Plus d’un an" Tag="{x:Static analysis:FileAgeBand.Old}"/>
+                                <ComboBoxItem Content="Date inconnue" Tag="{x:Static analysis:FileAgeBand.Unknown}"/>
+                                <ComboBoxItem x:Name="OlderThanThirtyDaysFilter" Content="Plus de 30 jours"/>
                             </ComboBox>
                             <Button Content="Filtrer" Click="ApplyExplorerFilter" Margin="0,0,6,0"/>
                             <Button Content="Effacer" Click="ClearExplorerFilter"/>

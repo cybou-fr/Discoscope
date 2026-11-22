@@ -406,8 +406,13 @@ public partial class MainWindow : Window
             Navigate(directory);
     }
 
-    private void OpenExplorerWorkspace(object sender, RoutedEventArgs e)
+    private async void OpenExplorerWorkspace(object sender, RoutedEventArgs e)
     {
+        if (FileTypesTable.SelectedItem is FileTypeRow { AgeBand: { } band })
+        {
+            await OpenAgeBandAsync(band);
+            return;
+        }
         WorkspaceTabs.SelectedItem = ExplorerWorkspace;
         ExplorerWorkspace.Focus();
     }
@@ -552,6 +557,30 @@ public partial class MainWindow : Window
         await FilterExplorerAsync();
     }
 
+    private async void OpenAgeDistributionRow(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source &&
+            ItemsControl.ContainerFromElement(FileTypesTable, source) is DataGridRow
+            { Item: FileTypeRow { AgeBand: { } band } })
+            await OpenAgeBandAsync(band);
+    }
+
+    private async void OpenAgeDistributionRowWithKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || FileTypesTable.SelectedItem is not FileTypeRow { AgeBand: { } band }) return;
+        e.Handled = true;
+        await OpenAgeBandAsync(band);
+    }
+
+    private async Task OpenAgeBandAsync(FileAgeBand ageBand)
+    {
+        ResetExplorerFilters();
+        ExplorerAgeFilter.SelectedValue = ageBand;
+        ExplorerVolumeScope.IsChecked = true;
+        WorkspaceTabs.SelectedItem = ExplorerWorkspace;
+        await FilterExplorerAsync();
+    }
+
     private async Task FilterExplorerAsync()
     {
         const long bytesPerMib = 1024 * 1024;
@@ -565,22 +594,19 @@ public partial class MainWindow : Window
         }
 
         string extension = ExplorerExtensionFilter.Text.Trim().TrimStart('.');
-        DateTime? cutoff = ExplorerAgeFilter.SelectedIndex switch
-        {
-            1 => DateTime.UtcNow.AddDays(-30),
-            2 => DateTime.UtcNow.AddDays(-365),
-            _ => null
-        };
+        var ageBand = ExplorerAgeFilter.SelectedValue is FileAgeBand band ? band : (FileAgeBand?)null;
+        DateTime? cutoff = ReferenceEquals(ExplorerAgeFilter.SelectedItem, OlderThanThirtyDaysFilter)
+            ? (Model.FileAgeReferenceUtc ?? DateTime.UtcNow).AddDays(-30) : null;
         string name = ExplorerNameFilter.Text.Trim();
         bool wholeVolume = ExplorerVolumeScope.IsChecked == true;
-        if (wholeVolume && name.Length == 0 && extension.Length == 0 && minimumMib == 0 && cutoff is null)
+        if (wholeVolume && name.Length == 0 && extension.Length == 0 && minimumMib == 0 && cutoff is null && ageBand is null)
         {
             ExplorerFilterStatus.Text = "Ajoutez un critère pour rechercher sur le lecteur.";
             return;
         }
 
         if (await Model.FilterExplorerAsync(name, extension.Length == 0 ? "" : "." + extension,
-            minimumMib * bytesPerMib, cutoff, wholeVolume) && Model.ExplorerItems is { } results)
+            minimumMib * bytesPerMib, cutoff, wholeVolume, ageBand) && Model.ExplorerItems is { } results)
         {
             foreach (var column in ExplorerTable.Columns) column.SortDirection = null;
             ExplorerFilterStatus.Text = results.TotalMatches > results.Count

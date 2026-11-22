@@ -81,6 +81,15 @@ public sealed class ExplorerFilterTests
             Assert.Equal(nestedFile, Assert.IsType<ExplorerRow>(volume[0]).FullPath);
             Assert.Equal(Path.Combine(root.FullName, "draft-report.pdf"),
                 Assert.IsType<ExplorerRow>(volume[1]).FullPath);
+
+            var reference = scan.CompletedAt.UtcDateTime;
+            var intermediate = new ExplorerRows(hierarchy)
+                .Filter("", "", 0, null, default, wholeVolume: true, ageBand: FileAgeBand.Intermediate,
+                    ageReferenceUtc: reference);
+            var ageTotal = FileTypeDistribution.AnalyzeDistributions(hierarchy, reference).Ages
+                .Single(group => group.AgeBand == FileAgeBand.Intermediate);
+            Assert.Equal(ageTotal.Files, intermediate.TotalMatches);
+            Assert.Equal(ageTotal.LogicalBytes, intermediate.Cast<ExplorerRow>().Sum(row => row.Bytes));
         }
         finally
         {

@@ -2,7 +2,12 @@ using Discoscope.Core.Models;
 
 namespace Discoscope.Core.Services;
 
-public sealed record FileTypeTotal(string Name, long Files, long LogicalBytes);
+public enum FileAgeBand { Recent, Intermediate, Old, Unknown }
+
+public sealed record FileTypeTotal(string Name, long Files, long LogicalBytes)
+{
+    public FileAgeBand? AgeBand { get; init; }
+}
 public sealed record FileDistributionTotals(IReadOnlyList<FileTypeTotal> Types, IReadOnlyList<FileTypeTotal> Ages);
 
 public static class FileTypeDistribution
@@ -33,17 +38,23 @@ public static class FileTypeDistribution
                 ref var total = ref totals[Category(file.Name)];
                 total.Files++;
                 total.Bytes += file.Bytes;
-                int age = file.ModifiedUtc == default ? 3
-                    : file.ModifiedUtc >= recentCutoff ? 0
-                    : file.ModifiedUtc >= oldCutoff ? 1 : 2;
+                int age = (int)ClassifyAge(file.ModifiedUtc, recentCutoff, oldCutoff);
                 ages[age].Files++;
                 ages[age].Bytes += file.Bytes;
             }
         }
         return new(
             ToRows(totals, Labels).OrderByDescending(total => total.LogicalBytes).ToArray(),
-            ToRows(ages, AgeLabels).ToArray());
+            ages.Select((total, index) => new FileTypeTotal(AgeLabels[index], total.Files, total.Bytes)
+            {
+                AgeBand = (FileAgeBand)index
+            }).Where(total => total.Files > 0).ToArray());
     }
+
+    public static FileAgeBand ClassifyAge(DateTime modifiedUtc, DateTime recentCutoff, DateTime oldCutoff) =>
+        modifiedUtc == default ? FileAgeBand.Unknown
+        : modifiedUtc >= recentCutoff ? FileAgeBand.Recent
+        : modifiedUtc >= oldCutoff ? FileAgeBand.Intermediate : FileAgeBand.Old;
 
     private static IEnumerable<FileTypeTotal> ToRows((long Files, long Bytes)[] totals, string[] labels) =>
         totals.Select((total, index) => new FileTypeTotal(labels[index], total.Files, total.Bytes))

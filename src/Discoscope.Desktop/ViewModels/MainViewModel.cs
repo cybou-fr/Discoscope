@@ -19,6 +19,7 @@ public sealed record LargeFileRow(string Path, long Bytes)
 public sealed record StorageInsightRow(string Category, string Path, string Size, string Risk, string Guidance);
 public sealed record FileTypeRow(string Name, long Files, long Bytes, double Share)
 {
+    public FileAgeBand? AgeBand { get; init; }
     public string SizeLabel => SizeFormatter.Format(Bytes);
     public string ShareLabel => Share.ToString("P1", CultureInfo.GetCultureInfo("fr-FR"));
 }
@@ -86,6 +87,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<StorageInsightRow> StorageInsights { get; } = [];
     public ObservableCollection<FileTypeRow> FileTypes { get; } = [];
     public ObservableCollection<FileTypeRow> FileAges { get; } = [];
+    public DateTime? FileAgeReferenceUtc { get; private set; }
     public string CapacityLabel { get; private set; } = "Total : —";
     public IReadOnlyList<TreemapItem> MapEntries { get; private set; } = [];
     public ScanDirectory? CurrentDirectory => _currentDirectory;
@@ -235,8 +237,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Task<bool> SortExplorerAsync(string property, ListSortDirection direction) =>
         TransformExplorerAsync((items, token) => items.Sort(property, direction, token));
 
-    public Task<bool> FilterExplorerAsync(string name, string extension, long minimumBytes, DateTime? modifiedBefore, bool wholeVolume) =>
-        TransformExplorerAsync((items, token) => items.Filter(name, extension, minimumBytes, modifiedBefore, token, wholeVolume));
+    public Task<bool> FilterExplorerAsync(string name, string extension, long minimumBytes, DateTime? modifiedBefore,
+        bool wholeVolume, FileAgeBand? ageBand)
+    {
+        var reference = FileAgeReferenceUtc;
+        return TransformExplorerAsync((items, token) =>
+            items.Filter(name, extension, minimumBytes, modifiedBefore, token, wholeVolume, ageBand, reference));
+    }
 
     private async Task<bool> TransformExplorerAsync(Func<ExplorerRows, CancellationToken, ExplorerRows> transform)
     {
@@ -382,6 +389,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StorageInsights.Clear();
         FileTypes.Clear();
         FileAges.Clear();
+        FileAgeReferenceUtc = null;
         _navigationCancellation?.Cancel();
         MapPath = "Analyse en cours…";
         SetDirectory(null);
@@ -426,9 +434,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             foreach (var type in prepared.Distribution.Types)
                 FileTypes.Add(new FileTypeRow(type.Name, type.Files, type.LogicalBytes,
                     result.TotalBytes > 0 ? (double)type.LogicalBytes / result.TotalBytes : 0));
+            FileAgeReferenceUtc = result.CompletedAt.UtcDateTime;
             foreach (var age in prepared.Distribution.Ages)
                 FileAges.Add(new FileTypeRow(age.Name, age.Files, age.LogicalBytes,
-                    result.TotalBytes > 0 ? (double)age.LogicalBytes / result.TotalBytes : 0));
+                    result.TotalBytes > 0 ? (double)age.LogicalBytes / result.TotalBytes : 0)
+                {
+                    AgeBand = age.AgeBand
+                });
             foreach (var insight in prepared.Storage)
                 StorageInsights.Add(new StorageInsightRow(insight.Category, insight.Path,
                     insight.IsMeasured ? SizeFormatter.Format(insight.LogicalBytes) : "—", insight.Risk, insight.Guidance));
