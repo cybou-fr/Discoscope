@@ -305,7 +305,9 @@
                             <TextBlock  Text="{Binding MapHint}" IsHitTestVisible="False" TextWrapping="Wrap"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
                             </Grid>
-                            <Expander Grid.Row="3" Grid.Column="2" Header="Les 200 plus grands fichiers du lecteur"
+                            <StackPanel Grid.Row="3" Grid.Column="2">
+                            <Expander x:Name="LargestLogicalFiles" Header="Les 200 plus grands fichiers du lecteur"
+                                      Expanded="ExpandFileRanking"
                                       Foreground="{StaticResource TextBrush}" Margin="0,4,0,0">
                                 <DataGrid x:Name="LargestFilesTable"  ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False" MaxHeight="150"
                           IsReadOnly="True" Background="#1A2230" Foreground="White"
@@ -318,6 +320,29 @@
                     </DataGrid.Columns>
                 </DataGrid>
                             </Expander>
+                            <Expander x:Name="LargestAllocatedFiles" Header="Fichiers les plus volumineux sur le disque (200 max.)"
+                                      Expanded="ExpandFileRanking" Visibility="Collapsed"
+                                      Foreground="{StaticResource TextBrush}" Margin="0,4,0,0">
+                                <DataGrid x:Name="LargestAllocatedFilesTable" AutoGenerateColumns="False" MaxHeight="130"
+                                          IsReadOnly="True" Background="#1A2230" Foreground="White"
+                                          RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
+                                          BorderThickness="0" GridLinesVisibility="None" CanUserAddRows="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Fichier" Binding="{Binding Path}" Width="*">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource TableText}">
+                                                    <Setter Property="ToolTip" Value="{Binding Path}"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="Taille allouée" Binding="{Binding AllocatedLabel}"
+                                                            SortMemberPath="AllocatedBytes" ElementStyle="{StaticResource TableNumber}" Width="125"/>
+                                        <DataGridTextColumn Header="Taille logique" Binding="{Binding LogicalLabel}"
+                                                            SortMemberPath="LogicalBytes" ElementStyle="{StaticResource TableNumber}" Width="125"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Expander>
+                            </StackPanel>
                         </Grid>
                     </Grid>
                 </TabItem>

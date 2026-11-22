@@ -32,11 +32,43 @@ public sealed class AllocatedSpaceInspectorTests
             Assert.Equal(1, result.DuplicateLinks);
             Assert.Equal(8192, result.MeasuredLogicalBytes);
             Assert.InRange(result.Bytes, 8192, 65536);
+            var ranked = Assert.Single(result.LargestFiles);
+            Assert.Equal(result.Bytes, ranked.AllocatedBytes);
+            Assert.Equal(8192, ranked.LogicalBytes);
 
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 inspector.InspectAsync(scan.Hierarchy!, cancellation.Token));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task RankingKeepsAtMostTwoHundredFilesOrderedByAllocatedBytes()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var root = Directory.CreateTempSubdirectory("DiscoscopeAllocatedRanking-");
+        try
+        {
+            var drive = new DriveInfo(root.Root.FullName);
+            if (drive.DriveType != DriveType.Fixed || drive.DriveFormat != "NTFS") return;
+
+            for (int index = 0; index < 200; index++)
+                File.WriteAllBytes(Path.Combine(root.FullName, $"empty-{index:D3}.bin"), []);
+            string largest = Path.Combine(root.FullName, "largest.bin");
+            File.WriteAllBytes(largest, new byte[256 * 1024]);
+
+            var scan = await new DiskScanner().ScanAsync(root.FullName, null, default);
+            var result = await new AllocatedSpaceInspector().InspectAsync(scan.Hierarchy!);
+
+            Assert.Equal(201, result.MeasuredPaths);
+            Assert.Equal(200, result.LargestFiles.Count);
+            Assert.Equal(largest, result.LargestFiles[0].Path);
+            Assert.All(result.LargestFiles.Skip(1), file => Assert.Equal(0, file.AllocatedBytes));
         }
         finally
         {

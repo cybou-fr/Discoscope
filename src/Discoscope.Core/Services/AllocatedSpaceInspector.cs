@@ -4,9 +4,12 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Discoscope.Core.Services;
 
+public sealed record AllocatedFile(string Path, long AllocatedBytes, long LogicalBytes);
+
 public sealed record AllocatedSpaceResult(long Bytes, long MeasuredPaths, long UnavailablePaths, long DuplicateLinks)
 {
     public long MeasuredLogicalBytes { get; init; }
+    public IReadOnlyList<AllocatedFile> LargestFiles { get; init; } = [];
 }
 
 public sealed class AllocatedSpaceInspector
@@ -23,6 +26,8 @@ public sealed class AllocatedSpaceInspector
             throw new PlatformNotSupportedException();
 
         var linkedFiles = new HashSet<FileIdentity>();
+        const int maxLargestFiles = 200;
+        var largestFiles = new PriorityQueue<AllocatedFile, (long Bytes, long Order)>();
         long bytes = 0, logicalBytes = 0, measured = 0, unavailable = 0, duplicates = 0;
         foreach (var directory in root.EnumerateSubtree())
         {
@@ -30,7 +35,8 @@ public sealed class AllocatedSpaceInspector
             foreach (var file in directory.Files)
             {
                 token.ThrowIfCancellationRequested();
-                string path = Path.Join(directory.Path, file.Name);
+                string filePath = Path.Join(directory.Path, file.Name);
+                string path = filePath;
                 if (path.Length >= 260 && path.Length > 2 && path[1] == ':')
                     path = @"\\?\" + path;
                 using var handle = CreateFile(path, 0, 7, IntPtr.Zero,
@@ -74,9 +80,20 @@ public sealed class AllocatedSpaceInspector
                 bytes = checked(bytes + allocation);
                 logicalBytes = checked(logicalBytes + standard.EndOfFile);
                 measured++;
+                var priority = (allocation, -measured);
+                if (largestFiles.Count < maxLargestFiles)
+                    largestFiles.Enqueue(new AllocatedFile(filePath, allocation, standard.EndOfFile), priority);
+                else if (largestFiles.TryPeek(out _, out var smallest) && priority.CompareTo(smallest) > 0)
+                    largestFiles.DequeueEnqueue(new AllocatedFile(filePath, allocation, standard.EndOfFile), priority);
             }
         }
-        return new(bytes, measured, unavailable, duplicates) { MeasuredLogicalBytes = logicalBytes };
+        token.ThrowIfCancellationRequested();
+        return new(bytes, measured, unavailable, duplicates)
+        {
+            MeasuredLogicalBytes = logicalBytes,
+            LargestFiles = largestFiles.UnorderedItems.OrderByDescending(item => item.Priority)
+                .Select(item => item.Element).ToArray()
+        };
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -432,12 +432,29 @@ public partial class MainWindow : Window
             Model.NavigateMapCommand.Execute(directory);
     }
 
+    private sealed record AllocatedFileRow(string Path, long AllocatedBytes, long LogicalBytes)
+    {
+        public string AllocatedLabel => SizeFormatter.Format(AllocatedBytes);
+        public string LogicalLabel => SizeFormatter.Format(LogicalBytes);
+    }
+
+    private void ExpandFileRanking(object sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, LargestLogicalFiles))
+            LargestAllocatedFiles.IsExpanded = false;
+        else
+            LargestLogicalFiles.IsExpanded = false;
+    }
+
     private void ResetAllocatedSpace()
     {
         _allocationCancellation?.Cancel();
         _allocationCancellation = null;
         AllocatedSpaceButton.Content = "Mesurer l’espace alloué";
         AllocatedSpaceStatus.Text = "";
+        LargestAllocatedFilesTable.ItemsSource = null;
+        LargestAllocatedFiles.IsExpanded = false;
+        LargestAllocatedFiles.Visibility = Visibility.Collapsed;
     }
 
     private async void MeasureAllocatedSpace(object sender, RoutedEventArgs e)
@@ -451,12 +468,23 @@ public partial class MainWindow : Window
 
         using var cancellation = new CancellationTokenSource();
         _allocationCancellation = cancellation;
+        LargestAllocatedFilesTable.ItemsSource = null;
+        LargestAllocatedFiles.IsExpanded = false;
+        LargestAllocatedFiles.Visibility = Visibility.Collapsed;
         AllocatedSpaceButton.Content = "Annuler la mesure";
         AllocatedSpaceStatus.Text = "Mesure des fichiers indexés en cours…";
         string status;
         try
         {
             var result = await new AllocatedSpaceInspector().InspectAsync(directory, cancellation.Token);
+            if (!ReferenceEquals(_allocationCancellation, cancellation)) return;
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (result.LargestFiles.Count > 0)
+            {
+                LargestAllocatedFilesTable.ItemsSource = result.LargestFiles.Select(file =>
+                    new AllocatedFileRow(file.Path, file.AllocatedBytes, file.LogicalBytes)).ToArray();
+                LargestAllocatedFiles.Visibility = Visibility.Visible;
+            }
             status = result.MeasuredPaths == 0 && result.UnavailablePaths > 0
                 ? $"Mesure indisponible · {result.UnavailablePaths:N0} chemin(s) non mesuré(s)"
                 : $"{SizeFormatter.Format(result.Bytes)} alloués / {SizeFormatter.Format(result.MeasuredLogicalBytes)} logiques " +
