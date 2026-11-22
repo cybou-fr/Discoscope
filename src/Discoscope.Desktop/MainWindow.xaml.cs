@@ -382,6 +382,8 @@ public partial class MainWindow : Window
 
     private MainViewModel Model => (MainViewModel)DataContext;
 
+    private async void RefreshDriveChoices(object sender, EventArgs e) => await Model.RefreshDrivesAsync();
+
     public MainWindow()
     {
         InitializeComponent();

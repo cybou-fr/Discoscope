@@ -37,7 +37,7 @@
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,22,0">
                     <TextBlock Text="Lecteur" x:Name="DriveLabel" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                    <ComboBox ItemsSource="{Binding Drives}" SelectedItem="{Binding SelectedDrive}"
+                    <ComboBox ItemsSource="{Binding Drives}" SelectedItem="{Binding SelectedDrive}" DropDownOpened="RefreshDriveChoices"
                               IsEnabled="{Binding CanSelectDrive}" MinHeight="32" Width="124"
                               AutomationProperties.LabeledBy="{Binding ElementName=DriveLabel}"/>
                 </StackPanel>

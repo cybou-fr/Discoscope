@@ -59,6 +59,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IDiskScanner _scanner;
     private CancellationTokenSource? _scanCancellation;
     private string? _selectedDrive;
+    private int _driveListRequest;
     private int _volumeRequest;
     private bool _isScanning;
     private string _status = "Prêt à analyser un lecteur.";
@@ -79,8 +80,47 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _componentStatus = "Non analysé";
     private string _componentReport = "L’analyse DISM est disponible séparément.";
 
-    public ObservableCollection<string> Drives { get; } = new(
-        DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.RootDirectory.FullName));
+    public ObservableCollection<string> Drives { get; } = new(GetAvailableDriveRoots());
+
+    private static string[] GetAvailableDriveRoots() =>
+        DriveInfo.GetDrives().Where(drive => drive.IsReady).Select(drive => drive.Name)
+            .Order(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    public async Task RefreshDrivesAsync()
+    {
+        if (!CanSelectDrive) return;
+        int request = ++_driveListRequest;
+        string[] available;
+        try { available = await Task.Run(GetAvailableDriveRoots); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException) { return; }
+        if (!CanSelectDrive || request != _driveListRequest) return;
+
+        var availableSet = new HashSet<string>(available, StringComparer.OrdinalIgnoreCase);
+        var selected = SelectedDrive;
+        bool selectionDisconnected = selected is not null && !availableSet.Contains(selected);
+        var analyzedRoot = _explorerRoot?.Directory?.Path;
+        bool snapshotDisconnected = analyzedRoot is not null && !availableSet.Contains(analyzedRoot);
+        for (int index = Drives.Count - 1; index >= 0; index--)
+            if (!availableSet.Contains(Drives[index]))
+                Drives.RemoveAt(index);
+
+        for (int index = 0; index < available.Length; index++)
+            if (index >= Drives.Count ||
+                !string.Equals(Drives[index], available[index], StringComparison.OrdinalIgnoreCase))
+                Drives.Insert(index, available[index]);
+
+        if (selectionDisconnected)
+            SelectedDrive = null;
+        if (snapshotDisconnected)
+        {
+            MapPath = "";
+            ClearScanResults();
+            FilesLabel = SizeLabel = IssuesLabel = "—";
+        }
+        if (selectionDisconnected || snapshotDisconnected)
+            Status = $"Le lecteur {(selectionDisconnected ? selected : analyzedRoot)} n’est plus disponible.";
+    }
 
     public ObservableCollection<DirectoryRow> Entries { get; } = [];
     public ObservableCollection<TemporaryRow> TemporaryEntries { get; } = [];
@@ -376,14 +416,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Changed(nameof(CapacityLabel));
     }
 
-    private async Task ScanAsync()
+    private void ClearScanResults()
     {
-        if (_isScanning || SelectedDrive is null) return;
-        var root = SelectedDrive;
-        using var operation = Telemetry.StartActivity("scan.total");
-        _scanCancellation = new CancellationTokenSource();
-        _isScanning = true;
-        RefreshCommands();
         Entries.Clear();
         TemporaryEntries.Clear();
         LargestFiles.Clear();
@@ -393,8 +427,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
         FileAges.Clear();
         FileAgeReferenceUtc = null;
         _navigationCancellation?.Cancel();
-        MapPath = "Analyse en cours…";
         SetDirectory(null);
+    }
+
+    private async Task ScanAsync()
+    {
+        if (_isScanning || SelectedDrive is null) return;
+        var root = SelectedDrive;
+        using var operation = Telemetry.StartActivity("scan.total");
+        _scanCancellation = new CancellationTokenSource();
+        _isScanning = true;
+        RefreshCommands();
+        MapPath = "Analyse en cours…";
+        ClearScanResults();
         FilesLabel = SizeLabel = IssuesLabel = "…";
         Status = "Analyse en cours…";
         var activeScan = _scanCancellation;
