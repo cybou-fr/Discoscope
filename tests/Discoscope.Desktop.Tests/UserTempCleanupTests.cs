@@ -167,6 +167,9 @@ public sealed class UserTempCleanupTests : IDisposable
         Assert.True(report.Cancelled);
         Assert.Equal(new UserTempCleanup.Result(1003, 0, 1003), report.Result);
         Assert.Equal(1003, updates[^1].Processed);
+        Assert.Equal(1015, report.Total);
+        Assert.Equal(1003, report.Processed);
+        Assert.Equal(12, report.Unprocessed);
         Assert.Equal(12, _root.EnumerateFiles().Count());
     }
 

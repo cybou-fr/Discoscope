@@ -16,6 +16,9 @@ public static class UserTempCleanup
     public sealed record RecycleReport(Result Result, bool Cancelled, IReadOnlyList<string> Errors)
     {
         public string? Failure { get; init; }
+        public long Total { get; init; }
+        public long Processed { get; init; }
+        public long Unprocessed => Total - Processed;
     }
     public sealed record Progress(long Visited, long Eligible, long LogicalBytes)
     {
@@ -283,7 +286,12 @@ public static class UserTempCleanup
         catch (IOException ex) { failure = ex.Message; }
         if (lastReported != processed) Report();
         return new RecycleReport(new Result(ToInt(recycled), ToInt(skipped), bytes),
-            cancelled || token.IsCancellationRequested && processed < total, errors) { Failure = failure };
+            cancelled || token.IsCancellationRequested && processed < total, errors)
+        {
+            Failure = failure,
+            Total = total,
+            Processed = processed
+        };
 
         void Report()
         {

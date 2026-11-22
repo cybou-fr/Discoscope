@@ -333,7 +333,10 @@ public partial class MainWindow : Window
             _cleanupProgressVersion++;
             ReleaseCleanupInventory();
             var result = report.Result;
-            CleanupStatus.Text = $"{result.Recycled:N0} déplacés · {result.Skipped:N0} ignorés · {FormatCleanupBytes(result.LogicalBytes)} logiques" +
+            CleanupStatus.Text = $"{report.Processed:N0} / {report.Total:N0} traités · " +
+                $"{result.Recycled:N0} déplacés · {result.Skipped:N0} ignorés" +
+                (report.Unprocessed > 0 ? $" · {report.Unprocessed:N0} non traités" : "") +
+                $" · {FormatCleanupBytes(result.LogicalBytes)} déplacés (taille logique)" +
                 CleanupOutcome(report, completedStatus) +
                 (before is { } previous && after is { } current
                     ? $" · Libre sur le volume : {SizeFormatter.Format(previous)} → {SizeFormatter.Format(current)}."
