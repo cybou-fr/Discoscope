@@ -196,7 +196,8 @@
                                            Foreground="{StaticResource MutedBrush}"/>
                             </StackPanel>
                         </DockPanel>
-                        <WrapPanel Grid.Row="1" Margin="0,0,0,8" IsEnabled="{Binding HasItems, ElementName=ExplorerTree}">
+                        <StackPanel Grid.Row="1" Margin="0,0,0,8" IsEnabled="{Binding HasItems, ElementName=ExplorerTree}">
+                        <WrapPanel>
                             <TextBlock Text="Nom" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <TextBox x:Name="ExplorerNameFilter" Width="108" Margin="0,0,9,0" ToolTip="Rechercher dans le dossier courant"
                                      AutomationProperties.Name="Nom du fichier ou du dossier" KeyDown="ExplorerFilterKey"/>
@@ -219,6 +220,14 @@
                             <TextBlock x:Name="ExplorerFilterStatus" Margin="8,0,0,0" VerticalAlignment="Center"
                                        AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource MutedBrush}"/>
                         </WrapPanel>
+                        <WrapPanel Margin="0,5,0,0">
+                            <Button x:Name="AllocatedSpaceButton" Content="Mesurer l’espace alloué" Click="MeasureAllocatedSpace"
+                                    ToolTip="Mesure les fichiers indexés de ce dossier et de ses sous-dossiers sur un volume NTFS local."/>
+                            <TextBlock x:Name="AllocatedSpaceStatus" Margin="8,0,0,0" VerticalAlignment="Center"
+                                       TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
+                                       Foreground="{StaticResource MutedBrush}"/>
+                        </WrapPanel>
+                        </StackPanel>
                         <Grid Grid.Row="2">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="3*"/>

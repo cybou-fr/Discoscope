@@ -31,6 +31,8 @@ Lancer `Discoscope.exe` depuis ce dossier. Le dépôt ne fournit pas d’install
 
 La capacité et l’espace libre sont rapportés par Windows. L’arborescence et la répartition par extension utilisent les tailles logiques des fichiers accessibles. Les fichiers compressés, clairsemés ou référencés par plusieurs liens physiques peuvent expliquer les écarts. Les liens physiques restent comptés par chemin, et les points de réanalyse sont ignorés. Les catégories système peuvent se recouvrir. Les mesures manquantes ou partielles sont signalées.
 
+Dans **Explorer**, **Mesurer l’espace alloué** interroge les métadonnées NTFS des fichiers indexés du dossier courant et de ses sous-dossiers. La mesure est annulable. Les liens physiques répétés sont comptés une fois dans ce périmètre et les chemins devenus indisponibles sont signalés. Le résultat couvre le flux principal des fichiers mesurés et exclut notamment les métadonnées du volume et les chemins absents de l’index. Un fichier partagé avec un autre dossier peut apparaître dans les mesures des deux dossiers.
+
 Le déplacement vers la Corbeille porte uniquement sur les fichiers temporaires éligibles et confirmés. Les métadonnées et l’identité sont revérifiées avant le déplacement. Le passage par le Shell reste une opération par chemin. L’espace libre mesuré avant et après est une observation du volume, et la taille logique des fichiers déplacés ne représente pas une quantité d’espace libéré.
 
 Les autres catégories utilisent des diagnostics en lecture seule et un accès aux paramètres de stockage Windows. DISM et VSS peuvent nécessiter des droits administrateur. Discoscope ne déclenche aucune maintenance système destructive.

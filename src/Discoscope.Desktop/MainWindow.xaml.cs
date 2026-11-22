@@ -15,6 +15,7 @@ namespace Discoscope.Desktop;
 public partial class MainWindow : Window
 {
     private bool _cleanupBusy;
+    private CancellationTokenSource? _allocationCancellation;
     private bool _closeAfterCleanup;
     private int _cleanupProgressVersion;
     protected override void OnClosing(CancelEventArgs e)
@@ -28,7 +29,11 @@ public partial class MainWindow : Window
             return;
         }
         base.OnClosing(e);
-        if (!e.Cancel) ReleaseCleanupInventory();
+        if (!e.Cancel)
+        {
+            ResetAllocatedSpace();
+            ReleaseCleanupInventory();
+        }
     }
     private UserTempCleanup.Inventory? _cleanupInventory;
     private int _cleanupPage;
@@ -378,7 +383,10 @@ public partial class MainWindow : Window
         Model.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.CurrentDirectory))
+            {
+                ResetAllocatedSpace();
                 ResetExplorerFilters();
+            }
         };
         Model.PropertyChanged += (_, args) =>
         {
@@ -422,6 +430,55 @@ public partial class MainWindow : Window
     {
         if (Model.NavigateMapCommand.CanExecute(directory))
             Model.NavigateMapCommand.Execute(directory);
+    }
+
+    private void ResetAllocatedSpace()
+    {
+        _allocationCancellation?.Cancel();
+        _allocationCancellation = null;
+        AllocatedSpaceButton.Content = "Mesurer l’espace alloué";
+        AllocatedSpaceStatus.Text = "";
+    }
+
+    private async void MeasureAllocatedSpace(object sender, RoutedEventArgs e)
+    {
+        if (_allocationCancellation is { } active)
+        {
+            active.Cancel();
+            return;
+        }
+        if (Model.CurrentDirectory is not { } directory) return;
+
+        using var cancellation = new CancellationTokenSource();
+        _allocationCancellation = cancellation;
+        AllocatedSpaceButton.Content = "Annuler la mesure";
+        AllocatedSpaceStatus.Text = "Mesure des fichiers indexés en cours…";
+        string status;
+        try
+        {
+            var result = await new AllocatedSpaceInspector().InspectAsync(directory, cancellation.Token);
+            status = result.MeasuredPaths == 0 && result.UnavailablePaths > 0
+                ? $"Mesure indisponible · {result.UnavailablePaths:N0} chemin(s) non mesuré(s)"
+                : $"{SizeFormatter.Format(result.Bytes)} alloués · {result.MeasuredPaths:N0} fichier(s) mesuré(s) · " +
+                  $"{result.DuplicateLinks:N0} lien(s) en double · {result.UnavailablePaths:N0} chemin(s) non mesuré(s)";
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            status = "Mesure annulée.";
+        }
+        catch (PlatformNotSupportedException)
+        {
+            status = "Mesure disponible sur les volumes NTFS locaux.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OverflowException)
+        {
+            status = "Mesure indisponible.";
+        }
+
+        if (!ReferenceEquals(_allocationCancellation, cancellation)) return;
+        _allocationCancellation = null;
+        AllocatedSpaceButton.Content = "Mesurer l’espace alloué";
+        AllocatedSpaceStatus.Text = status;
     }
 
     private void ResetExplorerFilters()
