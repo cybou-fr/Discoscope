@@ -7,6 +7,9 @@
         Title="Discoscope — Analyse de l'espace disque" Icon="Assets/appicon.ico" Width="1200" Height="790"
         MinWidth="900" MinHeight="620" Background="{StaticResource CanvasBrush}"
         WindowStartupLocation="CenterScreen" Language="fr-FR" UseLayoutRounding="True">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+    </Window.Resources>
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -230,17 +233,32 @@
                         </StackPanel>
                         <Grid Grid.Row="2">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="3*"/>
+                                <RowDefinition Height="3*" MinHeight="32"/>
                                 <RowDefinition Height="6"/>
-                                <RowDefinition Height="2*"/>
+                                <RowDefinition Height="2*" MinHeight="26"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition>
+                                    <RowDefinition.Style>
+                                        <Style TargetType="RowDefinition">
+                                            <Setter Property="Height" Value="0"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsChecked, ElementName=LargestLogicalFiles}" Value="True">
+                                                    <Setter Property="Height" Value="3*"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsChecked, ElementName=LargestAllocatedFiles}" Value="True">
+                                                    <Setter Property="Height" Value="3*"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </RowDefinition.Style>
+                                </RowDefinition>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="180" MinWidth="105"/>
                                 <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TreeView x:Name="ExplorerTree" Grid.RowSpan="4" ItemsSource="{Binding ExplorerRoots}" SelectedItemChanged="SelectExplorerDirectory"
+                            <TreeView x:Name="ExplorerTree" Grid.RowSpan="5" ItemsSource="{Binding ExplorerRoots}" SelectedItemChanged="SelectExplorerDirectory"
                                       AutomationProperties.Name="Dossiers" Background="{StaticResource CanvasBrush}"
                                       Foreground="{StaticResource TextBrush}" BorderThickness="0" Padding="5"
                                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
@@ -257,7 +275,7 @@
                                     </Style>
                                 </TreeView.ItemContainerStyle>
                             </TreeView>
-                            <GridSplitter Grid.Column="1" Grid.RowSpan="4" HorizontalAlignment="Stretch" Background="{StaticResource PanelBrush}"/>
+                            <GridSplitter Grid.Column="1" Grid.RowSpan="5" HorizontalAlignment="Stretch" Background="{StaticResource PanelBrush}"/>
                             <DataGrid x:Name="ExplorerTable" Grid.Column="2" ItemsSource="{Binding ExplorerItems}"
                                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                                       AutomationProperties.Name="Contenu du dossier" SelectionMode="Single" SelectionUnit="FullRow"
@@ -305,11 +323,15 @@
                             <TextBlock  Text="{Binding MapHint}" IsHitTestVisible="False" TextWrapping="Wrap"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
                             </Grid>
-                            <StackPanel Grid.Row="3" Grid.Column="2">
-                            <Expander x:Name="LargestLogicalFiles" Header="Les 200 plus grands fichiers du lecteur"
-                                      Expanded="ExpandFileRanking"
-                                      Foreground="{StaticResource TextBrush}" Margin="0,4,0,0">
-                                <DataGrid x:Name="LargestFilesTable"  ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False" MaxHeight="150"
+                            <WrapPanel Grid.Row="3" Grid.Column="2" Margin="0,4,0,4">
+                                <ToggleButton x:Name="LargestLogicalFiles" Content="Plus grands fichiers du lecteur"
+                                              Click="ToggleFileRanking" Padding="8,3" Margin="0,0,6,0"/>
+                                <ToggleButton x:Name="LargestAllocatedFiles" Content="Classement par taille allouée"
+                                              Click="ToggleFileRanking" Padding="8,3" Visibility="Collapsed"/>
+                            </WrapPanel>
+                            <Grid Grid.Row="4" Grid.Column="2" ClipToBounds="True">
+                                <DataGrid x:Name="LargestFilesTable"  ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False"
+                                          Visibility="{Binding IsChecked, ElementName=LargestLogicalFiles, Converter={StaticResource BoolToVisibility}}"
                           IsReadOnly="True" Background="#1A2230" Foreground="White"
                           RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
                           BorderThickness="0" GridLinesVisibility="None" CanUserAddRows="False">
@@ -319,11 +341,8 @@
                         <DataGridTextColumn ElementStyle="{StaticResource TableNumber}" Header="Taille logique" Binding="{Binding SizeLabel}" SortMemberPath="Bytes" Width="130"/>
                     </DataGrid.Columns>
                 </DataGrid>
-                            </Expander>
-                            <Expander x:Name="LargestAllocatedFiles" Header="Fichiers les plus volumineux sur le disque (200 max.)"
-                                      Expanded="ExpandFileRanking" Visibility="Collapsed"
-                                      Foreground="{StaticResource TextBrush}" Margin="0,4,0,0">
-                                <DataGrid x:Name="LargestAllocatedFilesTable" AutoGenerateColumns="False" MaxHeight="130"
+                                <DataGrid x:Name="LargestAllocatedFilesTable" AutoGenerateColumns="False"
+                                          Visibility="{Binding IsChecked, ElementName=LargestAllocatedFiles, Converter={StaticResource BoolToVisibility}}"
                                           IsReadOnly="True" Background="#1A2230" Foreground="White"
                                           RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
                                           BorderThickness="0" GridLinesVisibility="None" CanUserAddRows="False">
@@ -341,8 +360,7 @@
                                                             SortMemberPath="LogicalBytes" ElementStyle="{StaticResource TableNumber}" Width="125"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
-                            </Expander>
-                            </StackPanel>
+                            </Grid>
                         </Grid>
                     </Grid>
                 </TabItem>

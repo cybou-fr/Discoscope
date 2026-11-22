@@ -440,12 +440,12 @@ public partial class MainWindow : Window
         public string LogicalLabel => SizeFormatter.Format(LogicalBytes);
     }
 
-    private void ExpandFileRanking(object sender, RoutedEventArgs e)
+    private void ToggleFileRanking(object sender, RoutedEventArgs e)
     {
         if (ReferenceEquals(sender, LargestLogicalFiles))
-            LargestAllocatedFiles.IsExpanded = false;
+            LargestAllocatedFiles.IsChecked = false;
         else
-            LargestLogicalFiles.IsExpanded = false;
+            LargestLogicalFiles.IsChecked = false;
     }
 
     private void ResetAllocatedSpace()
@@ -456,7 +456,7 @@ public partial class MainWindow : Window
         AllocatedSpaceButton.IsEnabled = true;
         AllocatedSpaceStatus.Text = "";
         LargestAllocatedFilesTable.ItemsSource = null;
-        LargestAllocatedFiles.IsExpanded = false;
+        LargestAllocatedFiles.IsChecked = false;
         LargestAllocatedFiles.Visibility = Visibility.Collapsed;
     }
 
@@ -474,7 +474,7 @@ public partial class MainWindow : Window
         using var cancellation = new CancellationTokenSource();
         _allocationCancellation = cancellation;
         LargestAllocatedFilesTable.ItemsSource = null;
-        LargestAllocatedFiles.IsExpanded = false;
+        LargestAllocatedFiles.IsChecked = false;
         LargestAllocatedFiles.Visibility = Visibility.Collapsed;
         AllocatedSpaceButton.Content = "Annuler la mesure";
         AllocatedSpaceStatus.Text = "Mesure des fichiers indexés en cours…";
