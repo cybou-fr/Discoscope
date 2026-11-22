@@ -28,8 +28,15 @@ public sealed record ScanResult(
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         token.ThrowIfCancellationRequested();
         if (count == 0) return [];
-        if (Hierarchy is null) return Entries.Take(count).ToArray();
+        return Hierarchy is null ? Entries.Take(count).ToArray()
+            : GetLargestDirectoryNodes(count, token).Select(DirectoryEntries.ToEntry).ToArray();
+    }
 
+    public IReadOnlyList<ScanDirectory> GetLargestDirectoryNodes(int count, CancellationToken token = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        token.ThrowIfCancellationRequested();
+        if (count == 0 || Hierarchy is null) return [];
         var largest = new PriorityQueue<ScanDirectory, (long Bytes, long Order)>();
         long order = 0;
         foreach (var directory in DirectoryEntries.Traverse(Hierarchy))
@@ -42,6 +49,6 @@ public sealed record ScanResult(
                 largest.DequeueEnqueue(directory, priority);
         }
         return largest.UnorderedItems.OrderByDescending(item => item.Priority)
-            .Select(item => DirectoryEntries.ToEntry(item.Element)).ToArray();
+            .Select(item => item.Element).ToArray();
     }
 }

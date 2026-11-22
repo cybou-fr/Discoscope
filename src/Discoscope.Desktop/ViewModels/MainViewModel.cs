@@ -31,6 +31,7 @@ public sealed record TemporaryRow(string Name, string Path, string Size, long Fi
 
 public sealed record DirectoryRow(string Path, long Bytes, long FileCount)
 {
+    public ScanDirectory? Directory { get; init; }
     public string SizeLabel => SizeFormatter.Format(Bytes);
 }
 
@@ -418,12 +419,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     activeScan.Token);
 
             Status = "Préparation des résultats…";
-            (IReadOnlyList<TreemapItem> Map, IReadOnlyList<ScanEntry> Overview,
+            (IReadOnlyList<TreemapItem> Map, IEnumerable<DirectoryRow> Overview,
                 IReadOnlyList<StorageInsight> Storage, FileDistributionTotals Distribution) prepared;
             using (Telemetry.StartActivity("scan.prepare_results"))
                 prepared = await Task.Run(() =>
                     (directory is null ? [] : TreemapLayout.Summarize(directory, activeScan.Token),
-                        result.GetLargestDirectories(300, activeScan.Token),
+                        (directory is null
+                            ? result.GetLargestDirectories(300, activeScan.Token)
+                                .Select(entry => new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount))
+                            : result.GetLargestDirectoryNodes(300, activeScan.Token)
+                                .Select(node => new DirectoryRow(node.Path, node.Bytes, node.FileCount) { Directory = node }))
+                            .ToArray(),
                         WindowsStorageInsights.Analyze(directory, activeScan.Token),
                         FileTypeDistribution.AnalyzeDistributions(directory, result.CompletedAt.UtcDateTime,
                             activeScan.Token)), activeScan.Token);
@@ -458,7 +464,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SetDirectory(directory);
             SetMapEntries(prepared.Map);
             foreach (var entry in prepared.Overview)
-                Entries.Add(new DirectoryRow(entry.Path, entry.Bytes, entry.FileCount));
+                Entries.Add(entry);
             Status = $"Analyse terminée à {result.CompletedAt:HH:mm} · {result.DirectoryCount:N0} dossiers · {result.Issues.Count:N0} avertissements.";
         }
         catch (OperationCanceledException)

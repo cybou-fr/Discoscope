@@ -407,6 +407,36 @@ public partial class MainWindow : Window
             Navigate(directory);
     }
 
+    private void OpenSelectedOverviewDirectory(object sender, RoutedEventArgs e)
+    {
+        if (OverviewTable.SelectedItem is DirectoryRow { Directory: { } directory })
+            OpenOverviewDirectory(directory);
+    }
+
+    private void OpenOverviewDirectoryRow(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source &&
+            ItemsControl.ContainerFromElement(OverviewTable, source) is DataGridRow
+            { Item: DirectoryRow { Directory: { } directory } })
+            OpenOverviewDirectory(directory);
+    }
+
+    private void OpenOverviewDirectoryWithKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || OverviewTable.SelectedItem is not DirectoryRow { Directory: { } directory }) return;
+        e.Handled = true;
+        OpenOverviewDirectory(directory);
+    }
+
+    private void OpenOverviewDirectory(ScanDirectory directory)
+    {
+        if (!ReferenceEquals(Model.CurrentDirectory, directory) && !Model.NavigateMapCommand.CanExecute(directory))
+            return;
+        Navigate(directory);
+        WorkspaceTabs.SelectedItem = ExplorerWorkspace;
+        ExplorerWorkspace.Focus();
+    }
+
     private async void OpenExplorerWorkspace(object sender, RoutedEventArgs e)
     {
         if (FileTypesTable.SelectedItem is FileTypeRow row)

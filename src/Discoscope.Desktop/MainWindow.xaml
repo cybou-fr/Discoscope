@@ -94,8 +94,24 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Text="Dossiers les plus volumineux" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <DockPanel Margin="0,0,0,8">
+                                <Button DockPanel.Dock="Right" Content="Ouvrir" Click="OpenSelectedOverviewDirectory"
+                                        Padding="9,3" AutomationProperties.Name="Ouvrir le dossier sélectionné dans Explorer">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedItem.Directory, ElementName=OverviewTable, FallbackValue={x:Null}}" Value="{x:Null}">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <TextBlock Text="Dossiers les plus volumineux" FontSize="16" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
                             <DataGrid x:Name="OverviewTable" Grid.Row="1" ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
+                                      MouseDoubleClick="OpenOverviewDirectoryRow" PreviewKeyDown="OpenOverviewDirectoryWithKey"
                                       IsReadOnly="True" HeadersVisibility="Column" Background="#1A2230"
                                       Foreground="White" RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
                                       BorderThickness="0" GridLinesVisibility="None" RowHeight="32"

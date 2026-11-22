@@ -200,6 +200,9 @@ public sealed class DiskScannerTests
             Assert.Equal(4, result.Hierarchy!.Directories.Count);
             Assert.Equal(result.Entries.Take(2), result.GetLargestDirectories(2));
             Assert.Equal(result.Entries, result.GetLargestDirectories(10));
+            var nodes = result.GetLargestDirectoryNodes(2);
+            Assert.Equal(result.Entries.Take(2).Select(entry => entry.Path), nodes.Select(node => node.Path));
+            Assert.Same(result.Hierarchy.Directories.Single(node => node.Name == "three"), nodes[0]);
             Assert.Equal(0, Assert.Single(result.Hierarchy.Directories.Single(d => d.Name == "empty").Files).Bytes);
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
