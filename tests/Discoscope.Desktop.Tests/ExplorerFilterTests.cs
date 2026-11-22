@@ -8,6 +8,37 @@ namespace Discoscope.Desktop.Tests;
 public sealed class ExplorerFilterTests
 {
     [Fact]
+    public async Task SortsAllVolumeMatchesBeforeApplyingTheDisplayLimit()
+    {
+        var root = Directory.CreateTempSubdirectory("DiscoscopeExplorerLimit-");
+        try
+        {
+            for (int index = 0; index < ExplorerRows.VolumeSearchLimit; index++)
+                File.WriteAllText(Path.Combine(root.FullName, $"match-{index:D5}.dat"), "x");
+            var nested = root.CreateSubdirectory("nested");
+            string largest = Path.Combine(nested.FullName, "match-largest.dat");
+            File.WriteAllBytes(largest, new byte[128]);
+
+            var scan = await new DiskScanner().ScanAsync(root.FullName, null, default);
+            var results = new ExplorerRows(scan.Hierarchy!)
+                .Filter("match-", ".dat", 0, null, default, wholeVolume: true);
+
+            Assert.Equal(ExplorerRows.VolumeSearchLimit + 1, results.TotalMatches);
+            Assert.DoesNotContain(results.Cast<ExplorerRow>(), row => row.FullPath == largest);
+
+            var descending = results.Sort(nameof(ExplorerRow.Bytes), ListSortDirection.Descending);
+            Assert.Equal(largest, Assert.IsType<ExplorerRow>(descending[0]).FullPath);
+            Assert.Equal(ExplorerRows.VolumeSearchLimit, descending.Count);
+            var ascending = descending.Sort(nameof(ExplorerRow.Bytes), ListSortDirection.Ascending);
+            Assert.DoesNotContain(ascending.Cast<ExplorerRow>(), row => row.FullPath == largest);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task FiltersAndSortsUsingTheScanSnapshot()
     {
         var root = Directory.CreateTempSubdirectory("DiscoscopeExplorer-");

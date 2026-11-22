@@ -134,6 +134,11 @@ public sealed class DiskScannerTests
             var location = Assert.Single(locations);
             Assert.False(location.Accessible);
             Assert.Equal(1, location.SkippedCount);
+
+            var standalone = Assert.Single(await TemporaryFilesInspector.InspectLocationsAsync(
+                [("Blocked", blocked.FullName)], null, CancellationToken.None));
+            Assert.False(standalone.Accessible);
+            Assert.Equal(1, standalone.SkippedCount);
         }
         finally
         {

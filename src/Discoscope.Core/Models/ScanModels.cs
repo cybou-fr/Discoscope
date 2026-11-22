@@ -21,6 +21,7 @@ public sealed record ScanResult(
     public long RootDirectBytes { get; init; }
     public long RootDirectFileCount { get; init; }
     public ScanDirectory? Hierarchy { get; init; }
+    internal bool RootEnumerationSucceeded { get; init; }
 
     public IReadOnlyList<ScanEntry> GetLargestDirectories(int count, CancellationToken token = default)
     {

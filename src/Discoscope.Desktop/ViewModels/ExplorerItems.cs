@@ -71,15 +71,17 @@ public sealed class ExplorerRows : IList
     private readonly ScanDirectory directory;
     private readonly int[]? order;
     private readonly Entry[]? volumeMatches;
+    private readonly Predicate<Entry>? volumeFilter;
     public long TotalMatches { get; }
 
     public ExplorerRows(ScanDirectory directory) : this(directory, null, null, null) { }
 
-    private ExplorerRows(ScanDirectory directory, int[]? order, Entry[]? volumeMatches, long? totalMatches)
+    private ExplorerRows(ScanDirectory directory, int[]? order, Entry[]? volumeMatches, long? totalMatches, Predicate<Entry>? volumeFilter = null)
     {
         this.directory = directory;
         this.order = order;
         this.volumeMatches = volumeMatches;
+        this.volumeFilter = volumeFilter;
         TotalMatches = totalMatches ?? Count;
     }
 
@@ -112,6 +114,9 @@ public sealed class ExplorerRows : IList
 
     public ExplorerRows Sort(string property, ListSortDirection direction, CancellationToken token = default)
     {
+        if (volumeFilter is not null && TotalMatches > Count)
+            return SearchVolume(volumeFilter, token, (left, right) => Compare(left, right, property, direction));
+
         var indices = order is null ? Enumerable.Range(0, SourceCount).ToArray() : (int[])order.Clone();
         int comparisons = 0;
         try
@@ -119,16 +124,8 @@ public sealed class ExplorerRows : IList
             Array.Sort(indices, (left, right) =>
             {
                 if ((++comparisons & 1023) == 0) token.ThrowIfCancellationRequested();
-                int comparison = property switch
-                {
-                    nameof(ExplorerRow.Bytes) => Bytes(left).CompareTo(Bytes(right)),
-                    nameof(ExplorerRow.Type) => CompareTypes(left, right),
-                    nameof(ExplorerRow.ModifiedUtc) => File(left).ModifiedUtc.CompareTo(File(right).ModifiedUtc),
-                    _ => StringComparer.CurrentCultureIgnoreCase.Compare(Name(left), Name(right))
-                };
-                if (comparison == 0)
-                    comparison = left.CompareTo(right);
-                return direction == ListSortDirection.Ascending ? comparison : -Math.Sign(comparison);
+                int comparison = Compare(GetEntry(left), GetEntry(right), property, direction);
+                return comparison == 0 ? left.CompareTo(right) : comparison;
             });
         }
         catch (InvalidOperationException ex) when (ex.InnerException is OperationCanceledException && token.IsCancellationRequested)
@@ -136,7 +133,7 @@ public sealed class ExplorerRows : IList
             token.ThrowIfCancellationRequested();
         }
         token.ThrowIfCancellationRequested();
-        return new ExplorerRows(directory, indices, volumeMatches, TotalMatches);
+        return new ExplorerRows(directory, indices, volumeMatches, TotalMatches, volumeFilter);
     }
 
     public ExplorerRows Filter(string name, string extension, long minimumBytes, DateTime? modifiedBefore,
@@ -168,9 +165,20 @@ public sealed class ExplorerRows : IList
             return new ExplorerRows(directory, matches.ToArray(), null, null);
         }
 
+        return SearchVolume(Matches, token);
+    }
+
+    private ExplorerRows SearchVolume(Predicate<Entry> matches, CancellationToken token, Comparison<Entry>? compare = null)
+    {
         var root = directory;
         while (root.Parent is { } parent) root = parent;
         var volume = new List<Entry>();
+        var priority = Comparer<(Entry Entry, long Sequence)>.Create((left, right) =>
+        {
+            int result = compare?.Invoke(right.Entry, left.Entry) ?? 0;
+            return result == 0 ? right.Sequence.CompareTo(left.Sequence) : result;
+        });
+        var best = compare is null ? null : new PriorityQueue<Entry, (Entry Entry, long Sequence)>(priority);
         long total = 0;
         foreach (var folder in root.EnumerateSubtree())
         {
@@ -179,28 +187,55 @@ public sealed class ExplorerRows : IList
             {
                 token.ThrowIfCancellationRequested();
                 var entry = new Entry(folder, index);
-                if (!Matches(entry)) continue;
+                if (!matches(entry)) continue;
                 total++;
-                if (volume.Count < VolumeSearchLimit) volume.Add(entry);
+                if (best is null)
+                {
+                    if (volume.Count < VolumeSearchLimit) volume.Add(entry);
+                }
+                else
+                {
+                    var rank = (entry, total);
+                    if (best.Count < VolumeSearchLimit)
+                        best.Enqueue(entry, rank);
+                    else if (best.TryPeek(out _, out var worst) && priority.Compare(rank, worst) > 0)
+                        best.DequeueEnqueue(entry, rank);
+                }
             }
         }
-        return new ExplorerRows(directory, null, volume.ToArray(), total);
+        token.ThrowIfCancellationRequested();
+        if (best is null) return new ExplorerRows(directory, null, volume.ToArray(), total, matches);
+
+        var sorted = new Entry[best.Count];
+        for (int index = sorted.Length - 1; index >= 0; index--)
+        {
+            token.ThrowIfCancellationRequested();
+            sorted[index] = best.Dequeue();
+        }
+        return new ExplorerRows(directory, null, sorted, total, matches);
     }
 
-    private ScanFile File(int index) => GetEntry(index).File;
-    private ScanDirectory? GetDirectory(int index) => GetEntry(index).Directory;
-    private string Name(int index) => GetEntry(index).Name;
-    private long Bytes(int index) => GetEntry(index).Bytes;
-
-    private int CompareTypes(int left, int right)
+    private static int Compare(Entry left, Entry right, string property, ListSortDirection direction)
     {
-        bool leftIsDirectory = GetDirectory(left) is not null;
-        bool rightIsDirectory = GetDirectory(right) is not null;
+        int result = property switch
+        {
+            nameof(ExplorerRow.Bytes) => left.Bytes.CompareTo(right.Bytes),
+            nameof(ExplorerRow.Type) => CompareTypes(left, right),
+            nameof(ExplorerRow.ModifiedUtc) => left.File.ModifiedUtc.CompareTo(right.File.ModifiedUtc),
+            _ => StringComparer.CurrentCultureIgnoreCase.Compare(left.Name, right.Name)
+        };
+        return direction == ListSortDirection.Ascending ? result : -Math.Sign(result);
+    }
+
+    private static int CompareTypes(Entry left, Entry right)
+    {
+        bool leftIsDirectory = left.Directory is not null;
+        bool rightIsDirectory = right.Directory is not null;
         if (leftIsDirectory || rightIsDirectory)
             return rightIsDirectory.CompareTo(leftIsDirectory);
 
-        return Path.GetExtension(Name(left).AsSpan()).CompareTo(
-            Path.GetExtension(Name(right).AsSpan()), StringComparison.OrdinalIgnoreCase);
+        return Path.GetExtension(left.Name.AsSpan()).CompareTo(
+            Path.GetExtension(right.Name.AsSpan()), StringComparison.OrdinalIgnoreCase);
     }
 
     public int IndexOf(object? value) => value is ExplorerRow row && row.Index >= 0 && row.Index < Count

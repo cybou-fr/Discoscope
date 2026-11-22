@@ -139,6 +139,7 @@ public sealed class DiskScanner : IDiskScanner
         {
             LargestFiles = largestFiles.UnorderedItems.Select(x => x.Element).OrderByDescending(x => x.Bytes).ToArray(),
             Hierarchy = retainFiles ? rootDirectory : null,
+            RootEnumerationSucceeded = rootDirectory.EnumerationSucceeded,
             RootDirectBytes = rootDirectory.DirectBytes,
             RootDirectFileCount = rootDirectory.DirectFileCount
         };
