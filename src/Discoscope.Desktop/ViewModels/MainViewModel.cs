@@ -85,6 +85,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<ScanIssueRow> ScanIssues { get; } = [];
     public ObservableCollection<StorageInsightRow> StorageInsights { get; } = [];
     public ObservableCollection<FileTypeRow> FileTypes { get; } = [];
+    public ObservableCollection<FileTypeRow> FileAges { get; } = [];
     public string CapacityLabel { get; private set; } = "Total : —";
     public IReadOnlyList<TreemapItem> MapEntries { get; private set; } = [];
     public ScanDirectory? CurrentDirectory => _currentDirectory;
@@ -380,6 +381,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ScanIssues.Clear();
         StorageInsights.Clear();
         FileTypes.Clear();
+        FileAges.Clear();
         _navigationCancellation?.Cancel();
         MapPath = "Analyse en cours…";
         SetDirectory(null);
@@ -408,21 +410,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             Status = "Préparation des résultats…";
             (IReadOnlyList<TreemapItem> Map, IReadOnlyList<ScanEntry> Overview,
-                IReadOnlyList<StorageInsight> Storage, IReadOnlyList<FileTypeTotal> Types) prepared;
+                IReadOnlyList<StorageInsight> Storage, FileDistributionTotals Distribution) prepared;
             using (Telemetry.StartActivity("scan.prepare_results"))
                 prepared = await Task.Run(() =>
                     (directory is null ? [] : TreemapLayout.Summarize(directory, activeScan.Token),
                         result.GetLargestDirectories(300, activeScan.Token),
                         WindowsStorageInsights.Analyze(directory, activeScan.Token),
-                        FileTypeDistribution.Analyze(directory, activeScan.Token)), activeScan.Token);
+                        FileTypeDistribution.AnalyzeDistributions(directory, result.CompletedAt.UtcDateTime,
+                            activeScan.Token)), activeScan.Token);
             activeScan.Token.ThrowIfCancellationRequested();
             using var population = Telemetry.StartActivity("scan.populate_ui");
             FilesLabel = result.FileCount.ToString("N0");
             SizeLabel = SizeFormatter.Format(result.TotalBytes);
             IssuesLabel = result.Issues.Count.ToString("N0");
-            foreach (var type in prepared.Types)
+            foreach (var type in prepared.Distribution.Types)
                 FileTypes.Add(new FileTypeRow(type.Name, type.Files, type.LogicalBytes,
                     result.TotalBytes > 0 ? (double)type.LogicalBytes / result.TotalBytes : 0));
+            foreach (var age in prepared.Distribution.Ages)
+                FileAges.Add(new FileTypeRow(age.Name, age.Files, age.LogicalBytes,
+                    result.TotalBytes > 0 ? (double)age.LogicalBytes / result.TotalBytes : 0));
             foreach (var insight in prepared.Storage)
                 StorageInsights.Add(new StorageInsightRow(insight.Category, insight.Path,
                     insight.IsMeasured ? SizeFormatter.Format(insight.LogicalBytes) : "—", insight.Risk, insight.Guidance));

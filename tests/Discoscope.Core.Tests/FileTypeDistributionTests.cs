@@ -27,6 +27,34 @@ public sealed class FileTypeDistributionTests
     }
 
     [Fact]
+    public void AnalyzeDistributions_CountsEachFileOnceAcrossAgeBoundaries()
+    {
+        var reference = new DateTime(2026, 11, 22, 12, 0, 0, DateTimeKind.Utc);
+        var root = new ScanDirectory("root", null)
+        {
+            Files =
+            [
+                new("recent.txt", 1) { ModifiedUtc = reference.AddDays(-30) },
+                new("unknown.txt", 2)
+            ]
+        };
+        root.Directories = [new ScanDirectory("child", root)
+        {
+            Files =
+            [
+                new("mid.txt", 4) { ModifiedUtc = reference.AddDays(-365) },
+                new("old.txt", 8) { ModifiedUtc = reference.AddDays(-365).AddTicks(-1) }
+            ]
+        }];
+
+        var totals = FileTypeDistribution.AnalyzeDistributions(root, reference);
+
+        Assert.Equal(new long[] { 1, 4, 8, 2 }, totals.Ages.Select(age => age.LogicalBytes));
+        Assert.All(totals.Ages, age => Assert.Equal(1, age.Files));
+        Assert.Equal(Assert.Single(totals.Types).LogicalBytes, totals.Ages.Sum(age => age.LogicalBytes));
+    }
+
+    [Fact]
     public void Analyze_ObservesCancellation()
     {
         using var cancellation = new CancellationTokenSource();

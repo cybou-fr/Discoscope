@@ -3,24 +3,28 @@ using Discoscope.Core.Models;
 namespace Discoscope.Core.Services;
 
 public sealed record FileTypeTotal(string Name, long Files, long LogicalBytes);
+public sealed record FileDistributionTotals(IReadOnlyList<FileTypeTotal> Types, IReadOnlyList<FileTypeTotal> Ages);
 
 public static class FileTypeDistribution
 {
     private static readonly string[] Labels =
         ["Documents", "Images", "Vidéo", "Audio", "Archives", "Applications et bibliothèques",
          "Code et configuration", "Images disque", "Autres extensions", "Sans extension"];
+    private static readonly string[] AgeLabels =
+        ["30 jours ou moins", "31 à 365 jours", "Plus d’un an", "Date inconnue"];
 
-    public static IReadOnlyList<FileTypeTotal> Analyze(ScanDirectory? root, CancellationToken token = default)
+    public static IReadOnlyList<FileTypeTotal> Analyze(ScanDirectory? root, CancellationToken token = default) =>
+        AnalyzeDistributions(root, DateTime.UtcNow, token).Types;
+
+    public static FileDistributionTotals AnalyzeDistributions(ScanDirectory? root, DateTime referenceUtc,
+        CancellationToken token = default)
     {
-        if (root is null) return [];
+        if (root is null) return new([], []);
         var totals = new (long Files, long Bytes)[Labels.Length];
-        Accumulate(root);
-        foreach (var directory in DirectoryEntries.Traverse(root))
-            Accumulate(directory);
-        return totals.Select((total, index) => new FileTypeTotal(Labels[index], total.Files, total.Bytes))
-            .Where(total => total.Files > 0).OrderByDescending(total => total.LogicalBytes).ToArray();
-
-        void Accumulate(ScanDirectory directory)
+        var ages = new (long Files, long Bytes)[AgeLabels.Length];
+        var recentCutoff = referenceUtc.AddDays(-30);
+        var oldCutoff = referenceUtc.AddDays(-365);
+        foreach (var directory in root.EnumerateSubtree())
         {
             token.ThrowIfCancellationRequested();
             foreach (var file in directory.Files)
@@ -29,9 +33,21 @@ public static class FileTypeDistribution
                 ref var total = ref totals[Category(file.Name)];
                 total.Files++;
                 total.Bytes += file.Bytes;
+                int age = file.ModifiedUtc == default ? 3
+                    : file.ModifiedUtc >= recentCutoff ? 0
+                    : file.ModifiedUtc >= oldCutoff ? 1 : 2;
+                ages[age].Files++;
+                ages[age].Bytes += file.Bytes;
             }
         }
+        return new(
+            ToRows(totals, Labels).OrderByDescending(total => total.LogicalBytes).ToArray(),
+            ToRows(ages, AgeLabels).ToArray());
     }
+
+    private static IEnumerable<FileTypeTotal> ToRows((long Files, long Bytes)[] totals, string[] labels) =>
+        totals.Select((total, index) => new FileTypeTotal(labels[index], total.Files, total.Bytes))
+            .Where(total => total.Files > 0);
 
     private static int Category(string name)
     {

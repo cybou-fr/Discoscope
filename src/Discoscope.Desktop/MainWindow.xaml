@@ -113,17 +113,33 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <DockPanel Margin="0,0,0,8">
+                            <DockPanel Margin="0,0,0,8" LastChildFill="False">
                                 <Button DockPanel.Dock="Right" Content="Explorer" Click="OpenExplorerWorkspace" Padding="9,3"/>
-                                <TextBlock Text="Répartition par type de fichier" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="OverviewDistribution" DockPanel.Dock="Left" SelectedIndex="0" Width="210"
+                                          AutomationProperties.Name="Répartition des fichiers">
+                                    <ComboBoxItem Content="Par type de fichier"/>
+                                    <ComboBoxItem Content="Par date de modification"/>
+                                </ComboBox>
                             </DockPanel>
-                            <DataGrid x:Name="FileTypesTable" Grid.Row="1" ItemsSource="{Binding FileTypes}"
+                            <DataGrid x:Name="FileTypesTable" Grid.Row="1"
                                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                                       Background="{StaticResource PanelBrush}" RowBackground="{StaticResource PanelBrush}"
                                       AlternatingRowBackground="{StaticResource SurfaceBrush}" GridLinesVisibility="None" RowHeight="34"
                                       CanUserAddRows="False" BorderThickness="0">
+                                <DataGrid.Style>
+                                    <Style TargetType="DataGrid">
+                                        <Setter Property="ItemsSource" Value="{Binding FileTypes}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedIndex, ElementName=OverviewDistribution}" Value="1">
+                                                <Setter Property="ItemsSource" Value="{Binding FileAges}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Style>
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Type" Binding="{Binding Name}" ElementStyle="{StaticResource TableText}" Width="*"/>
+                                    <DataGridTextColumn Header="Catégorie" Binding="{Binding Name}" ElementStyle="{StaticResource TableText}" Width="*"/>
+                                    <DataGridTextColumn Header="Fichiers" Binding="{Binding Files, StringFormat={}{0:N0}}"
+                                                        ElementStyle="{StaticResource TableNumber}" Width="70"/>
                                     <DataGridTextColumn Header="Taille logique" Binding="{Binding SizeLabel}" SortMemberPath="Bytes"
                                                         ElementStyle="{StaticResource TableNumber}" Width="105"/>
                                     <DataGridTemplateColumn Header="Part du total" SortMemberPath="Share" Width="115">
@@ -145,7 +161,7 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             <TextBlock Grid.Row="1" Style="{StaticResource EmptyTableHint}" Tag="{Binding ElementName=FileTypesTable}"
-                                       Text="La répartition par type apparaît après l’analyse."/>
+                                       Text="La répartition des fichiers apparaît après l’analyse."/>
                         </Grid>
                     </Grid>
                 </TabItem>
