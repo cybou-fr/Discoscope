@@ -451,6 +451,7 @@ public partial class MainWindow : Window
         _allocationCancellation?.Cancel();
         _allocationCancellation = null;
         AllocatedSpaceButton.Content = "Mesurer l’espace alloué";
+        AllocatedSpaceButton.IsEnabled = true;
         AllocatedSpaceStatus.Text = "";
         LargestAllocatedFilesTable.ItemsSource = null;
         LargestAllocatedFiles.IsExpanded = false;
@@ -462,6 +463,8 @@ public partial class MainWindow : Window
         if (_allocationCancellation is { } active)
         {
             active.Cancel();
+            AllocatedSpaceButton.IsEnabled = false;
+            AllocatedSpaceStatus.Text = "Annulation de la mesure…";
             return;
         }
         if (Model.CurrentDirectory is not { } directory) return;
@@ -473,10 +476,17 @@ public partial class MainWindow : Window
         LargestAllocatedFiles.Visibility = Visibility.Collapsed;
         AllocatedSpaceButton.Content = "Annuler la mesure";
         AllocatedSpaceStatus.Text = "Mesure des fichiers indexés en cours…";
+        var progress = new Progress<AllocatedSpaceProgress>(update =>
+        {
+            if (!ReferenceEquals(_allocationCancellation, cancellation) || cancellation.IsCancellationRequested)
+                return;
+            AllocatedSpaceStatus.Text = $"{update.ProcessedPaths:N0} / {update.TotalPaths:N0} chemins vérifiés · " +
+                                        $"{SizeFormatter.Format(update.AllocatedBytes)} alloués";
+        });
         string status;
         try
         {
-            var result = await new AllocatedSpaceInspector().InspectAsync(directory, cancellation.Token);
+            var result = await new AllocatedSpaceInspector().InspectAsync(directory, progress, cancellation.Token);
             if (!ReferenceEquals(_allocationCancellation, cancellation)) return;
             cancellation.Token.ThrowIfCancellationRequested();
             if (result.LargestFiles.Count > 0)
@@ -507,6 +517,7 @@ public partial class MainWindow : Window
         if (!ReferenceEquals(_allocationCancellation, cancellation)) return;
         _allocationCancellation = null;
         AllocatedSpaceButton.Content = "Mesurer l’espace alloué";
+        AllocatedSpaceButton.IsEnabled = true;
         AllocatedSpaceStatus.Text = status;
     }
 

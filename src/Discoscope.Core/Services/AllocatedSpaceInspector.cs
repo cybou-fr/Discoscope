@@ -5,6 +5,7 @@ using Microsoft.Win32.SafeHandles;
 namespace Discoscope.Core.Services;
 
 public sealed record AllocatedFile(string Path, long AllocatedBytes, long LogicalBytes);
+public sealed record AllocatedSpaceProgress(long ProcessedPaths, long TotalPaths, long AllocatedBytes);
 
 public sealed record AllocatedSpaceResult(long Bytes, long MeasuredPaths, long UnavailablePaths, long DuplicateLinks)
 {
@@ -15,9 +16,13 @@ public sealed record AllocatedSpaceResult(long Bytes, long MeasuredPaths, long U
 public sealed class AllocatedSpaceInspector
 {
     public Task<AllocatedSpaceResult> InspectAsync(ScanDirectory root, CancellationToken token = default) =>
-        Task.Run(() => Inspect(root, token), token);
+        InspectAsync(root, progress: null, token);
 
-    private static AllocatedSpaceResult Inspect(ScanDirectory root, CancellationToken token)
+    public Task<AllocatedSpaceResult> InspectAsync(ScanDirectory root, IProgress<AllocatedSpaceProgress>? progress,
+        CancellationToken token) => Task.Run(() => Inspect(root, progress, token), token);
+
+    private static AllocatedSpaceResult Inspect(ScanDirectory root, IProgress<AllocatedSpaceProgress>? progress,
+        CancellationToken token)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException();
@@ -29,12 +34,21 @@ public sealed class AllocatedSpaceInspector
         const int maxLargestFiles = 200;
         var largestFiles = new PriorityQueue<AllocatedFile, (long Bytes, long Order)>();
         long bytes = 0, logicalBytes = 0, measured = 0, unavailable = 0, duplicates = 0;
+        long lastReport = 0;
         foreach (var directory in root.EnumerateSubtree())
         {
             token.ThrowIfCancellationRequested();
             foreach (var file in directory.Files)
             {
                 token.ThrowIfCancellationRequested();
+                long processed = measured + unavailable + duplicates;
+                if (progress is not null && processed > 0 &&
+                    (lastReport == 0 || Environment.TickCount64 - lastReport >= 250))
+                {
+                    lastReport = Environment.TickCount64;
+                    progress.Report(new(processed, root.FileCount, bytes));
+                    token.ThrowIfCancellationRequested();
+                }
                 string filePath = Path.Join(directory.Path, file.Name);
                 string path = filePath;
                 if (path.Length >= 260 && path.Length > 2 && path[1] == ':')
@@ -87,6 +101,8 @@ public sealed class AllocatedSpaceInspector
                     largestFiles.DequeueEnqueue(new AllocatedFile(filePath, allocation, standard.EndOfFile), priority);
             }
         }
+        token.ThrowIfCancellationRequested();
+        progress?.Report(new(measured + unavailable + duplicates, root.FileCount, bytes));
         token.ThrowIfCancellationRequested();
         return new(bytes, measured, unavailable, duplicates)
         {

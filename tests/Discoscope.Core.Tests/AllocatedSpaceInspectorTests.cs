@@ -63,12 +63,25 @@ public sealed class AllocatedSpaceInspectorTests
             File.WriteAllBytes(largest, new byte[256 * 1024]);
 
             var scan = await new DiskScanner().ScanAsync(root.FullName, null, default);
-            var result = await new AllocatedSpaceInspector().InspectAsync(scan.Hierarchy!);
+            var inspector = new AllocatedSpaceInspector();
+            var updates = new List<AllocatedSpaceProgress>();
+            var result = await inspector.InspectAsync(scan.Hierarchy!,
+                new InlineProgress<AllocatedSpaceProgress>(updates.Add), default);
 
             Assert.Equal(201, result.MeasuredPaths);
             Assert.Equal(200, result.LargestFiles.Count);
             Assert.Equal(largest, result.LargestFiles[0].Path);
             Assert.All(result.LargestFiles.Skip(1), file => Assert.Equal(0, file.AllocatedBytes));
+            Assert.Equal(new AllocatedSpaceProgress(201, 201, result.Bytes), updates[^1]);
+
+            using var cancellation = new CancellationTokenSource();
+            var update = new InlineProgress<AllocatedSpaceProgress>(value =>
+            {
+                Assert.InRange(value.ProcessedPaths, 1, 200);
+                cancellation.Cancel();
+            });
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                inspector.InspectAsync(scan.Hierarchy!, update, cancellation.Token));
         }
         finally
         {
@@ -112,6 +125,11 @@ public sealed class AllocatedSpaceInspectorTests
         {
             root.Delete(recursive: true);
         }
+    }
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     [DllImport("kernel32.dll", ExactSpelling = true)]
