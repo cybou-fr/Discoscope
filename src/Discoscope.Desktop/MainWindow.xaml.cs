@@ -127,6 +127,7 @@ public partial class MainWindow : Window
     private void CancelCleanup(object sender, RoutedEventArgs e)
     {
         _cleanupCancellation?.Cancel();
+        _cleanupProgressVersion++;
         CleanupCancelButton.IsEnabled = false;
         CleanupStatus.Text = "Annulation en cours…";
     }
@@ -283,7 +284,7 @@ public partial class MainWindow : Window
         if (_cleanupBusy || _cleanupInventory is not { Count: > 0 } inventory) return;
         var location = SelectedCleanupLocation;
         if (MessageBox.Show(this,
-            $"Déplacer TOUS les {inventory.Count:N0} fichiers indexés ({FormatCleanupBytes(inventory.LogicalBytes)} logiques) vers la Corbeille ?\n\nLes fichiers sont revérifiés individuellement. Cette opération peut être longue et l’espace libre n’augmentera pas avant de vider la Corbeille.",
+            $"Déplacer vers la Corbeille les {inventory.Count:N0} fichiers indexés sur toutes les pages ({FormatCleanupBytes(inventory.LogicalBytes)} de taille logique) ?\n\nEmplacement : {inventory.Root}\n\nChaque fichier est revérifié avant le déplacement. La taille indiquée ne garantit pas un gain d’espace libre.",
             "Confirmer le nettoyage complet", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         await RunCleanupAsync((token, progress) => UserTempCleanup.RecycleInventory(inventory, location, token, progress),
             location, "Nettoyage par lots en cours…", " · Nettoyage terminé.");
@@ -292,16 +293,17 @@ public partial class MainWindow : Window
     private async void RecycleUserTempCleanup(object sender, RoutedEventArgs e)
     {
         if (_cleanupBusy) return;
+        if (_cleanupInventory is not { } inventory) return;
         var selected = CleanupFiles.SelectedItems.Cast<UserTempCleanup.Candidate>().ToArray();
         if (selected.Length == 0) return;
         long total = 0;
         foreach (var file in selected)
             total = total > long.MaxValue - file.Bytes ? long.MaxValue : total + file.Bytes;
         var fileLabel = selected.Length == 1 ? "fichier" : "fichiers";
-        if (MessageBox.Show(this,
-            $"Déplacer {selected.Length:N0} {fileLabel} ({FormatCleanupBytes(total)} logiques) vers la Corbeille ?\n\nL’espace libre ne sera pas nécessairement augmenté avant de vider la Corbeille.",
-            "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         var location = SelectedCleanupLocation;
+        if (MessageBox.Show(this,
+            $"Déplacer vers la Corbeille {selected.Length:N0} {fileLabel} de la page actuelle ({FormatCleanupBytes(total)} de taille logique) ?\n\nEmplacement : {inventory.Root}\n\nChaque fichier est revérifié avant le déplacement. La taille indiquée ne garantit pas un gain d’espace libre.",
+            "Confirmer le nettoyage", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         await RunCleanupAsync((token, progress) => UserTempCleanup.RecycleWithReport(selected, location, token, progress),
             location, "Déplacement vers la Corbeille…", " · Résultats du disque à actualiser.");
     }

@@ -367,16 +367,15 @@
                                 <Button x:Name="CleanupRecycleButton" Style="{StaticResource CleanupButton}" Content="Déplacer la sélection" AutomationProperties.Name="Déplacer la sélection vers la Corbeille" Click="RecycleUserTempCleanup" Padding="9,6" Margin="10,0,0,0" IsEnabled="False"/>
                             </WrapPanel>
                             <StackPanel Grid.Row="3" Margin="0,0,0,4">
-                                <DockPanel Margin="0,0,0,4">
+                                <DockPanel Margin="0,0,0,4" LastChildFill="False">
                                     <Button x:Name="CleanupPreviousPage" Content="Précédent" Click="PreviousCleanupPage"
                                             IsEnabled="False" Padding="12,5"/>
                                     <TextBlock x:Name="CleanupPageStatus" Text="Aucune page" Margin="12,0" VerticalAlignment="Center"/>
                                     <Button x:Name="CleanupNextPage" Content="Suivant" Click="NextCleanupPage"
                                             IsEnabled="False" Padding="12,5"/>
-                                    <TextBlock x:Name="CleanupStatus" Text="Aucun aperçu" Margin="12,0,0,0" VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
-                                               AutomationProperties.LiveSetting="Polite"/>
                                 </DockPanel>
+                                <TextBlock x:Name="CleanupStatus" Text="Aucun aperçu" Margin="0,0,0,5"
+                                           TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
                                 <ProgressBar x:Name="CleanupProgressBar" Height="3" Visibility="Hidden"
                                              Foreground="{StaticResource AccentBrush}"
                                              AutomationProperties.Name="Progression du nettoyage"/>
@@ -395,8 +394,10 @@
                                           AlternatingRowBackground="#222C3D" BorderThickness="0" GridLinesVisibility="None">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn ElementStyle="{StaticResource CleanupFileName}" Header="Fichier" Binding="{Binding Name}" Width="*" MinWidth="145"/>
-                                        <DataGridTextColumn ElementStyle="{StaticResource TableNumber}" Header="Octets" Binding="{Binding Bytes}" Width="65"/>
-                                        <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Modification UTC" Binding="{Binding ModifiedUtc}" Width="145"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableNumber}" Header="Octets"
+                                                            Binding="{Binding Bytes, StringFormat={}{0:N0}}" SortMemberPath="Bytes" Width="105"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableText}" Header="Modification UTC"
+                                                            Binding="{Binding ModifiedUtc, StringFormat={}{0:dd/MM/yyyy HH:mm}}" Width="145"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <DockPanel Grid.Column="2">
