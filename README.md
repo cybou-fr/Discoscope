@@ -27,7 +27,13 @@ Pour préparer un dossier distribuable pour Windows x64 avec le runtime inclus :
 dotnet publish src/Discoscope.Desktop -c Release -r win-x64 --self-contained true -o artifacts/Discoscope-win-x64
 ```
 
-Lancer `Discoscope.exe` depuis ce dossier. Le dépôt ne fournit pas d’installateur signé.
+Lancer `Discoscope.exe` depuis ce dossier.
+
+## Installateur Windows x64
+
+Avec Inno Setup 6.7 installé, exécutez `./scripts/build-installer.ps1 -Version 0.2.0-rc.1`. Le paramètre `-CompilerPath` permet d’indiquer un autre emplacement pour `ISCC.exe`. Le script place l’installateur autonome et son empreinte SHA-256 dans `artifacts/installer`.
+
+L’installateur en français cible Windows 11 et Windows 10 22H2 x64. Il installe pour l’utilisateur courant et ajoute un raccourci au menu Démarrer. La désinstallation est accessible depuis les applications installées de Windows. L’installateur produit localement est non signé.
 
 ## Comprendre les mesures
 
