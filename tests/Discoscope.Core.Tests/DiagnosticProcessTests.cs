@@ -47,6 +47,53 @@ public sealed class DiagnosticProcessTests
             Assert.Equal("Délai dépassé", (await result).Status);
     }
 
+    [Fact]
+    public async Task Run_WaitsForDiagnosticProcessToExitAfterCancellation()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var directory = Directory.CreateTempSubdirectory("DiscoscopeDiagnostic-");
+        try
+        {
+            string marker = Path.Combine(directory.FullName, "pid.txt");
+            var start = new ProcessStartInfo
+            {
+                FileName = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            start.ArgumentList.Add("-NoProfile");
+            start.ArgumentList.Add("-NonInteractive");
+            start.ArgumentList.Add("-Command");
+            start.ArgumentList.Add($"[IO.File]::WriteAllText('{marker.Replace("'", "''")}', [string]$PID); Start-Sleep -Seconds 30");
+            using var cancellation = new CancellationTokenSource();
+            var running = DiagnosticProcess.RunAsync("Test", start, TimeSpan.FromSeconds(30), "", cancellation.Token);
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                int pid = 0;
+                while (!File.Exists(marker) || !int.TryParse(await File.ReadAllTextAsync(marker, deadline.Token), out pid))
+                    await Task.Delay(25, deadline.Token);
+                using var process = Process.GetProcessById(pid);
+                cancellation.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+                Assert.True(process.HasExited);
+            }
+            finally
+            {
+                cancellation.Cancel();
+                try { await running; }
+                catch (OperationCanceledException) { }
+            }
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     private static ProcessStartInfo Command(string arguments) => new()
     {
         FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),

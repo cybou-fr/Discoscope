@@ -17,24 +17,42 @@ public partial class MainWindow : Window
     private bool _cleanupBusy;
     private FileTypeCategory? _explorerTypeCategory;
     private CancellationTokenSource? _allocationCancellation;
-    private bool _closeAfterCleanup;
+    private bool _closeRequested;
     private int _cleanupProgressVersion;
+    private bool HasActiveWindowOperations => _cleanupBusy || _allocationCancellation is not null ||
+        DataContext is MainViewModel { IsBusy: true };
+
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (_cleanupBusy)
+        if (HasActiveWindowOperations)
         {
-            _closeAfterCleanup = true;
-            _cleanupCancellation?.Cancel();
             e.Cancel = true;
-            CleanupStatus.Text = "Annulation en cours avant la fermeture…";
+            if (!_closeRequested)
+            {
+                _closeRequested = true;
+                IsEnabled = false;
+                _cleanupProgressVersion++;
+                _cleanupCancellation?.Cancel();
+                _allocationCancellation?.Cancel();
+                Model.CancelForWindowClose();
+                if (_cleanupBusy)
+                    CleanupStatus.Text = "Annulation en cours avant la fermeture…";
+            }
             return;
         }
         base.OnClosing(e);
         if (!e.Cancel)
         {
+            Model.CancelForWindowClose();
             ResetAllocatedSpace();
             ReleaseCleanupInventory();
         }
+    }
+
+    private void CloseWhenIdle()
+    {
+        if (_closeRequested && !HasActiveWindowOperations)
+            Dispatcher.BeginInvoke(new Action(Close));
     }
     private UserTempCleanup.Inventory? _cleanupInventory;
     private int _cleanupPage;
@@ -153,7 +171,7 @@ public partial class MainWindow : Window
         _cleanupBusy = false;
         CleanupProgressBar.Visibility = Visibility.Hidden;
         UpdateCleanupSelection();
-        if (_closeAfterCleanup) Dispatcher.BeginInvoke(new Action(Close));
+        CloseWhenIdle();
     }
 
     private CancellationToken StartCleanup()
@@ -170,7 +188,7 @@ public partial class MainWindow : Window
     private void ShowCleanupMessage(string message)
     {
         _cleanupProgressVersion++;
-        if (!_closeAfterCleanup) MessageBox.Show(this, message, "Discoscope");
+        if (!_closeRequested) MessageBox.Show(this, message, "Discoscope");
     }
 
     private void UpdateCleanupSelection()
@@ -351,7 +369,7 @@ public partial class MainWindow : Window
                 (before is { } previous && after is { } current
                     ? $" · Libre sur le volume : {SizeFormatter.Format(previous)} → {SizeFormatter.Format(current)}."
                     : "");
-            if (!_closeAfterCleanup && report.Errors.Count > 0)
+            if (!_closeRequested && report.Errors.Count > 0)
                 MessageBox.Show(this, string.Join(Environment.NewLine, report.Errors.Take(20)) +
                     (report.Errors.Count > 20 ? "\n… (extrait des 100 premières anomalies)." : ""),
                     "Fichiers ignorés — détails", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -399,6 +417,8 @@ public partial class MainWindow : Window
         DataContext = new MainViewModel(new DiskScanner());
         Model.PropertyChanged += (_, args) =>
         {
+            if (args.PropertyName == nameof(MainViewModel.IsBusy))
+                CloseWhenIdle();
             if (args.PropertyName == nameof(MainViewModel.CurrentDirectory))
             {
                 ResetAllocatedSpace();
@@ -607,6 +627,7 @@ public partial class MainWindow : Window
         AllocatedSpaceButton.Content = "Mesurer l’espace alloué";
         AllocatedSpaceButton.IsEnabled = true;
         AllocatedSpaceStatus.Text = status;
+        CloseWhenIdle();
     }
 
     private void ResetExplorerFilters()

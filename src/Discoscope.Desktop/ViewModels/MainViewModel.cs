@@ -377,6 +377,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         NavigateMapCommand.RaiseCanExecuteChanged();
     }
 
+    internal void CancelForWindowClose()
+    {
+        _scanCancellation?.Cancel();
+        _navigationCancellation?.Cancel();
+        _explorerSortCancellation?.Cancel();
+    }
+
     private async Task AnalyzeWindowsAsync()
     {
         if (_isScanning) return;

@@ -37,6 +37,7 @@ internal static class DiagnosticProcess
                 {
                     if (!process.HasExited)
                         process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync().ConfigureAwait(false);
                 }
                 catch (InvalidOperationException) when (process.HasExited)
                 {
