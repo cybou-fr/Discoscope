@@ -474,6 +474,9 @@
                                     <TextBlock x:Name="CleanupPageStatus" Text="Aucune page" Margin="12,0" VerticalAlignment="Center"/>
                                     <Button x:Name="CleanupNextPage" Content="Suivant" Click="NextCleanupPage"
                                             IsEnabled="False" Padding="12,5"/>
+                                    <Button x:Name="CleanupRevealFileButton" Content="Afficher le fichier"
+                                            Click="RevealCleanupFile" IsEnabled="False" Padding="12,5" Margin="10,0,0,0"
+                                            ToolTip="Sélectionner le fichier dans l’Explorateur Windows"/>
                                 </DockPanel>
                                 <TextBlock x:Name="CleanupStatus" Text="Aucun aperçu" Margin="0,0,0,5"
                                            TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
