@@ -12,6 +12,7 @@ internal sealed class CleanupFileGuard : IDisposable
     private const uint GenericRead = 0x80000000;
     private const uint BackupSemantics = 0x02000000;
     private const uint OpenReparsePoint = 0x00200000;
+    private const int FileStandardInfo = 1;
     private const int FileIdInfo = 18;
     private readonly List<SafeFileHandle> _handles = [];
 
@@ -21,6 +22,16 @@ internal sealed class CleanupFileGuard : IDisposable
 
     [StructLayout(LayoutKind.Sequential)]
     internal readonly record struct FileIdentity(ulong Volume, ulong Low, ulong High);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct StandardInfo
+    {
+        public long AllocationSize;
+        public long EndOfFile;
+        public uint NumberOfLinks;
+        public byte DeletePending;
+        public byte Directory;
+    }
 
     private CleanupFileGuard() { }
 
@@ -96,11 +107,15 @@ internal sealed class CleanupFileGuard : IDisposable
     {
         if ((File.GetAttributes(handle) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
             throw new IOException("Lien, point de réanalyse ou type de chemin non autorisé.");
+        if (!GetStandardInfo(handle, FileStandardInfo, out var standard, Marshal.SizeOf<StandardInfo>()))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (standard.NumberOfLinks != 1 || standard.DeletePending != 0 || standard.Directory != 0)
+            throw new IOException("Fichier à liens physiques multiples ou en cours de suppression.");
         if (!GetFileInformationByHandleEx(handle, FileIdInfo, out var identity, Marshal.SizeOf<FileIdentity>()))
             throw new Win32Exception(Marshal.GetLastWin32Error());
         if (identity.Low == 0 && identity.High == 0)
             throw new IOException("Identifiant du fichier indisponible.");
-        return (RandomAccess.GetLength(handle), File.GetLastWriteTimeUtc(handle), identity);
+        return (standard.EndOfFile, File.GetLastWriteTimeUtc(handle), identity);
     }
 
     private static SafeFileHandle OpenHandle(string path, bool directory)
@@ -132,4 +147,9 @@ internal sealed class CleanupFileGuard : IDisposable
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int informationClass,
         out FileIdentity information, int size);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandleEx", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetStandardInfo(SafeFileHandle file, int informationClass,
+        out StandardInfo information, int size);
 }

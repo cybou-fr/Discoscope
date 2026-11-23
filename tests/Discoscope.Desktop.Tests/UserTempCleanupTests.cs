@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using Discoscope.Desktop.Services;
@@ -119,6 +120,32 @@ public sealed class UserTempCleanupTests : IDisposable
         Assert.Throws<IOException>(() => guard.VerifyPathStillMatches(original));
         Assert.True(File.Exists(original));
     }
+
+    [Fact]
+    public void HardLinkedFilesAreExcludedAndNewLinksInvalidateExistingCandidates()
+    {
+        if (new DriveInfo(_root.Root.FullName).DriveFormat != "NTFS") return;
+
+        var alreadyLinked = WriteOld("already-linked.bin", 8);
+        var linkedLater = WriteOld("linked-later.bin", 12);
+        string outsideLink = Path.Combine(_fixture.FullName, "outside.bin");
+        Assert.True(CreateHardLink(outsideLink, alreadyLinked, IntPtr.Zero));
+
+        using var inventory = Index();
+        Assert.Equal(linkedLater, Assert.Single(inventory.ReadPage(0)).Path);
+
+        string lateLink = Path.Combine(_fixture.FullName, "late.bin");
+        Assert.True(CreateHardLink(lateLink, linkedLater, IntPtr.Zero));
+        var report = Recycle(inventory);
+        Assert.Equal(new UserTempCleanup.Result(0, 1, 0), report.Result);
+        Assert.Empty(_recycled.GetFiles());
+        Assert.Equal(12, new FileInfo(linkedLater).Length);
+        Assert.Equal(12, new FileInfo(lateLink).Length);
+    }
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateHardLink(string link, string existingFile, IntPtr security);
 
     [Fact]
     public void InventoryAcceptsEquivalentWindowsPathCasing()
