@@ -19,6 +19,8 @@ dotnet test Discoscope.slnx -c Release
 dotnet run --project src/Discoscope.Desktop -c Release --no-build
 ```
 
+Pour lancer la vérification locale complète sous Windows, exécutez `./scripts/verify-local.ps1`. Les journaux de restauration, de compilation et de test, ainsi que les résultats TRX, sont conservés dans `artifacts/verification`.
+
 Pour préparer un dossier distribuable pour Windows x64 avec le runtime inclus :
 
 ```powershell
