@@ -411,6 +411,17 @@ public partial class MainWindow : Window
 
     private async void RefreshDriveChoices(object sender, EventArgs e) => await Model.RefreshDrivesAsync();
 
+    private void UpdateCompactLayout(object sender, RoutedEventArgs e)
+    {
+        if (AppHeader is null || AnalysisCards is null || WorkspaceTabs is null ||
+            e is SelectionChangedEventArgs && !ReferenceEquals(e.Source, WorkspaceTabs))
+            return;
+
+        var visibility = ActualHeight < 700 && WorkspaceTabs.SelectedIndex > 0
+            ? Visibility.Collapsed : Visibility.Visible;
+        AppHeader.Visibility = AnalysisCards.Visibility = visibility;
+    }
+
     public MainWindow()
     {
         InitializeComponent();

@@ -7,7 +7,7 @@
         Foreground="{StaticResource TextBrush}" FontFamily="Segoe UI"
         Title="Discoscope — Analyse de l'espace disque" Icon="Assets/appicon.ico" Width="1200" Height="790"
         MinWidth="900" MinHeight="620" Background="{StaticResource CanvasBrush}"
-        WindowStartupLocation="CenterScreen" Language="fr-FR" UseLayoutRounding="True">
+        WindowStartupLocation="CenterScreen" SizeChanged="UpdateCompactLayout" Language="fr-FR" UseLayoutRounding="True">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
@@ -20,7 +20,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <DockPanel Margin="0,0,0,14">
+        <DockPanel x:Name="AppHeader" Margin="0,0,0,14">
             <Button DockPanel.Dock="Right" Content="À propos" Click="ShowAbout" VerticalAlignment="Center"/>
             <StackPanel Orientation="Horizontal">
                 <Image Source="Assets/appicon-128.png" Width="40" Height="40" Margin="0,0,11,0"/>
@@ -61,37 +61,39 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="10"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="10"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.ColumnSpan="5" Text="{Binding ScanSourceLabel}" Margin="0,0,0,5"
+            <TextBlock Text="{Binding ScanSourceLabel}" Margin="0,0,0,5"
                        Foreground="{StaticResource MutedBrush}" AutomationProperties.LiveSetting="Polite"/>
-            <Border Grid.Row="1" Style="{StaticResource SurfaceCard}">
-                <StackPanel>
-                    <TextBlock Text="Fichiers analysés" Foreground="{StaticResource MutedBrush}"/>
-                    <TextBlock Text="{Binding FilesLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>
-                </StackPanel>
-            </Border>
-            <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource SurfaceCard}">
-                <StackPanel>
-                    <TextBlock Text="Taille logique analysée" Foreground="{StaticResource MutedBrush}"/>
-                    <TextBlock Text="{Binding SizeLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>
-                </StackPanel>
-            </Border>
-            <Border Grid.Row="1" Grid.Column="4" Style="{StaticResource SurfaceCard}">
-                <StackPanel>
-                    <TextBlock Text="Avertissements" Foreground="{StaticResource MutedBrush}"/>
-                    <TextBlock Text="{Binding IssuesLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>
-                </StackPanel>
-            </Border>
+            <Grid x:Name="AnalysisCards" Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource SurfaceCard}">
+                    <StackPanel>
+                        <TextBlock Text="Fichiers analysés" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="{Binding FilesLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource SurfaceCard}">
+                    <StackPanel>
+                        <TextBlock Text="Taille logique analysée" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="{Binding SizeLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="4" Style="{StaticResource SurfaceCard}">
+                    <StackPanel>
+                        <TextBlock Text="Avertissements" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="{Binding IssuesLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Grid>
 
         <Border Grid.Row="3" Style="{StaticResource SurfaceCard}" Padding="10">
-            <TabControl x:Name="WorkspaceTabs" Background="{StaticResource PanelBrush}" BorderThickness="0">
+            <TabControl x:Name="WorkspaceTabs" SelectionChanged="UpdateCompactLayout" Background="{StaticResource PanelBrush}" BorderThickness="0">
                 <TabItem Header="Vue d'ensemble">
                     <Grid Margin="8" TextElement.Foreground="{StaticResource TextBrush}">
                         <Grid.ColumnDefinitions>
@@ -283,7 +285,7 @@
                         </StackPanel>
                         <Grid Grid.Row="2">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="3*" MinHeight="32"/>
+                                <RowDefinition Height="4*" MinHeight="32"/>
                                 <RowDefinition Height="6"/>
                                 <RowDefinition Height="2*" MinHeight="26"/>
                                 <RowDefinition Height="Auto"/>
@@ -293,13 +295,13 @@
                                             <Setter Property="Height" Value="0"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsChecked, ElementName=LargestLogicalFiles}" Value="True">
-                                                    <Setter Property="Height" Value="3*"/>
+                                                    <Setter Property="Height" Value="4*"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsChecked, ElementName=LargestAllocatedFiles}" Value="True">
-                                                    <Setter Property="Height" Value="3*"/>
+                                                    <Setter Property="Height" Value="4*"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsChecked, ElementName=LargestAllocatedFolders}" Value="True">
-                                                    <Setter Property="Height" Value="3*"/>
+                                                    <Setter Property="Height" Value="4*"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
