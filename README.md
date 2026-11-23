@@ -31,6 +31,8 @@ Lancer `Discoscope.exe` depuis ce dossier. Le dépôt ne fournit pas d’install
 
 La capacité et l’espace libre sont rapportés par Windows. L’arborescence et la répartition par extension utilisent les tailles logiques des fichiers accessibles. Les fichiers compressés, clairsemés ou référencés par plusieurs liens physiques peuvent expliquer les écarts. Les liens physiques restent comptés par chemin, et les points de réanalyse sont ignorés. Les catégories système peuvent se recouvrir. Les mesures manquantes ou partielles sont signalées.
 
+Le périmètre de l’analyse reste affiché si vous sélectionnez un autre lecteur. Pour une lettre attribuée à un dossier avec `subst`, la capacité affichée est celle du volume hôte. Le chemin associé est disponible au survol.
+
 Dans **Explorer**, **Mesurer l’espace alloué** interroge les métadonnées NTFS des fichiers indexés du dossier courant et de ses sous-dossiers. La mesure est annulable. Elle présente jusqu’à 200 fichiers classés par taille allouée, avec leur taille logique. Les liens physiques répétés sont comptés une fois dans ce périmètre et les chemins devenus indisponibles sont signalés. Le résultat couvre le flux principal des fichiers mesurés et exclut notamment les métadonnées du volume et les chemins absents de l’index. Un fichier partagé avec un autre dossier peut apparaître dans les mesures des deux dossiers.
 
 Le même passage classe jusqu’à 200 sous-dossiers directs, en incluant leurs descendants. Chaque ligne déduplique les liens dans son propre périmètre et indique si la mesure est partielle. Les lignes peuvent se recouvrir lorsque des liens physiques relient des sous-dossiers différents.

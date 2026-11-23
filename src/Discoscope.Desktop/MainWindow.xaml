@@ -45,7 +45,8 @@
                               AutomationProperties.LabeledBy="{Binding ElementName=DriveLabel}"/>
                 </StackPanel>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Espace du volume" Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    <TextBlock Text="{Binding VolumeSourceLabel}" ToolTip="{Binding VolumeSourcePath}"
+                               Foreground="{StaticResource MutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis"/>
                     <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                         <TextBlock Text="{Binding VolumeLabel}" Margin="0,0,14,0"/>
                         <TextBlock Text="{Binding FreeLabel}" Foreground="{StaticResource MutedBrush}" Margin="0,0,14,0"/>
@@ -56,6 +57,10 @@
         </Border>
 
         <Grid Grid.Row="2" Margin="0,0,0,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="10"/>
@@ -63,19 +68,21 @@
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Border Style="{StaticResource SurfaceCard}">
+            <TextBlock Grid.ColumnSpan="5" Text="{Binding ScanSourceLabel}" Margin="0,0,0,5"
+                       Foreground="{StaticResource MutedBrush}" AutomationProperties.LiveSetting="Polite"/>
+            <Border Grid.Row="1" Style="{StaticResource SurfaceCard}">
                 <StackPanel>
                     <TextBlock Text="Fichiers analysés" Foreground="{StaticResource MutedBrush}"/>
                     <TextBlock Text="{Binding FilesLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>
                 </StackPanel>
             </Border>
-            <Border Grid.Column="2" Style="{StaticResource SurfaceCard}">
+            <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource SurfaceCard}">
                 <StackPanel>
                     <TextBlock Text="Taille logique analysée" Foreground="{StaticResource MutedBrush}"/>
                     <TextBlock Text="{Binding SizeLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>
                 </StackPanel>
             </Border>
-            <Border Grid.Column="4" Style="{StaticResource SurfaceCard}">
+            <Border Grid.Row="1" Grid.Column="4" Style="{StaticResource SurfaceCard}">
                 <StackPanel>
                     <TextBlock Text="Avertissements" Foreground="{StaticResource MutedBrush}"/>
                     <TextBlock Text="{Binding IssuesLabel}" FontSize="23" FontWeight="SemiBold" Margin="0,2,0,0"/>

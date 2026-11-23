@@ -59,6 +59,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IDiskScanner _scanner;
     private CancellationTokenSource? _scanCancellation;
     private string? _selectedDrive;
+    private string? _scanSource;
     private int _driveListRequest;
     private int _volumeRequest;
     private bool _isScanning;
@@ -99,7 +100,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var availableSet = new HashSet<string>(available, StringComparer.OrdinalIgnoreCase);
         var selected = SelectedDrive;
         bool selectionDisconnected = selected is not null && !availableSet.Contains(selected);
-        var analyzedRoot = _explorerRoot?.Directory?.Path;
+        var analyzedRoot = _scanSource;
         bool snapshotDisconnected = analyzedRoot is not null && !availableSet.Contains(analyzedRoot);
         for (int index = Drives.Count - 1; index >= 0; index--)
             if (!availableSet.Contains(Drives[index]))
@@ -155,15 +156,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (_selectedDrive == value) return;
             _selectedDrive = value;
+            VolumeSourceLabel = "Espace du volume sélectionné";
+            VolumeSourcePath = null;
             CapacityLabel = "Total : —";
             VolumeLabel = "Occupé : —";
             FreeLabel = "Libre : —";
             Changed(nameof(CapacityLabel));
+            Changed(nameof(VolumeSourceLabel));
+            Changed(nameof(VolumeSourcePath));
+            Changed(nameof(ScanSourceLabel));
             Changed();
             ScanCommand.RaiseCanExecuteChanged();
             _ = RefreshVolumeAsync(value);
         }
     }
+    public string VolumeSourceLabel { get; private set; } = "Espace du volume sélectionné";
+    public string? VolumeSourcePath { get; private set; }
+    public string ScanSourceLabel => _scanSource is null ? "Aucune analyse"
+        : !string.Equals(_scanSource, SelectedDrive, StringComparison.OrdinalIgnoreCase)
+            ? $"Résultats de {_scanSource} · sélection différente"
+            : $"Périmètre de l’analyse : {_scanSource}";
     public string Status { get => _status; private set { _status = value; Changed(); } }
     public string FilesLabel { get => _filesLabel; private set { _filesLabel = value; Changed(); } }
     public string SizeLabel { get => _sizeLabel; private set { _sizeLabel = value; Changed(); } }
@@ -410,6 +422,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             or System.Security.SecurityException) { }
 
         if (request != _volumeRequest) return;
+        VolumeSourcePath = volume?.SubstitutedPath;
+        VolumeSourceLabel = VolumeSourcePath is null ? $"Espace du volume {root}"
+            : $"Espace du volume hôte de {root} (dossier mappé)";
+        Changed(nameof(VolumeSourcePath));
+        Changed(nameof(VolumeSourceLabel));
         CapacityLabel = volume is null ? "Total : —" : "Total : " + SizeFormatter.Format(volume.CapacityBytes);
         VolumeLabel = volume is null ? "Occupé : —" : "Occupé : " + SizeFormatter.Format(volume.UsedBytes);
         FreeLabel = volume is null ? "Libre : —" : "Libre : " + SizeFormatter.Format(volume.FreeBytes);
@@ -418,6 +435,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void ClearScanResults()
     {
+        SetScanSource(null);
         Entries.Clear();
         TemporaryEntries.Clear();
         LargestFiles.Clear();
@@ -430,6 +448,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SetDirectory(null);
     }
 
+    private void SetScanSource(string? source)
+    {
+        _scanSource = source;
+        Changed(nameof(ScanSourceLabel));
+    }
+
     private async Task ScanAsync()
     {
         if (_isScanning || SelectedDrive is null) return;
@@ -440,6 +464,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         RefreshCommands();
         MapPath = "Analyse en cours…";
         ClearScanResults();
+        SetScanSource(root);
         FilesLabel = SizeLabel = IssuesLabel = "…";
         Status = "Analyse en cours…";
         var activeScan = _scanCancellation;
@@ -508,6 +533,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     temp.Accessible ? SizeFormatter.Format(temp.LogicalBytes) : "Indisponible", temp.FileCount, temp.SkippedCount));
             SetDirectory(directory);
             SetMapEntries(prepared.Map);
+            SetScanSource(result.Root);
             foreach (var entry in prepared.Overview)
                 Entries.Add(entry);
             Status = $"Analyse terminée à {result.CompletedAt:HH:mm} · {result.DirectoryCount:N0} dossiers · {result.Issues.Count:N0} avertissements.";
@@ -515,6 +541,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (OperationCanceledException)
         {
             Status = "Analyse annulée.";
+            SetScanSource(null);
             MapPath = Status;
             SetMapEntries([]);
             FilesLabel = SizeLabel = IssuesLabel = "—";
@@ -522,6 +549,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             Status = $"Échec de l'analyse : {ex.Message}";
+            SetScanSource(null);
             MapPath = "Analyse indisponible";
             SetMapEntries([]);
             FilesLabel = SizeLabel = IssuesLabel = "—";
