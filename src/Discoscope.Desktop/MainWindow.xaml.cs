@@ -512,6 +512,7 @@ public partial class MainWindow : Window
         if (!ReferenceEquals(sender, LargestLogicalFiles)) LargestLogicalFiles.IsChecked = false;
         if (!ReferenceEquals(sender, LargestAllocatedFiles)) LargestAllocatedFiles.IsChecked = false;
         if (!ReferenceEquals(sender, LargestAllocatedFolders)) LargestAllocatedFolders.IsChecked = false;
+        UpdateRankedFileAction();
     }
 
     private void ClearAllocatedRankings()
@@ -519,6 +520,7 @@ public partial class MainWindow : Window
         LargestAllocatedFiles.IsChecked = LargestAllocatedFolders.IsChecked = false;
         LargestAllocatedFiles.Visibility = LargestAllocatedFolders.Visibility = Visibility.Collapsed;
         LargestAllocatedFilesTable.ItemsSource = LargestAllocatedFoldersTable.ItemsSource = null;
+        UpdateRankedFileAction();
     }
 
     private void ResetAllocatedSpace()
@@ -742,7 +744,55 @@ public partial class MainWindow : Window
         var row = ExplorerTable.SelectedItem as ExplorerRow;
         bool selectFile = row is { Directory: null };
         var path = row?.FullPath ?? Model.CurrentDirectory?.Path;
-        if (path is null) return;
+        if (path is not null)
+            ShowPathInWindowsExplorer(path, selectFile);
+    }
+
+    private string? SelectedRankedFilePath() =>
+        LargestLogicalFiles.IsChecked == true ? RankedFilePath(LargestFilesTable.SelectedItem)
+        : LargestAllocatedFiles.IsChecked == true ? RankedFilePath(LargestAllocatedFilesTable.SelectedItem) : null;
+
+    private static string? RankedFilePath(object? item) => item switch
+    {
+        LargeFileRow file => file.Path,
+        AllocatedFileRow file => file.Path,
+        _ => null
+    };
+
+    private void UpdateRankedFileAction()
+    {
+        if (RevealRankedFileButton is null || LargestFilesTable is null || LargestAllocatedFilesTable is null) return;
+        RevealRankedFileButton.Visibility = LargestLogicalFiles.IsChecked == true || LargestAllocatedFiles.IsChecked == true
+            ? Visibility.Visible : Visibility.Collapsed;
+        RevealRankedFileButton.IsEnabled = SelectedRankedFilePath() is not null;
+    }
+
+    private void RankedFileSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateRankedFileAction();
+
+    private void RevealRankedFile(object sender, RoutedEventArgs e)
+    {
+        if (SelectedRankedFilePath() is { } path)
+            ShowPathInWindowsExplorer(path, selectFile: true);
+    }
+
+    private void RevealRankedFileOnDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is DataGrid table && e.OriginalSource is DependencyObject source &&
+            ItemsControl.ContainerFromElement(table, source) is DataGridRow row &&
+            RankedFilePath(row.Item) is { } path)
+            ShowPathInWindowsExplorer(path, selectFile: true);
+    }
+
+    private void RevealRankedFileOnEnter(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || sender is not DataGrid table ||
+            RankedFilePath(table.SelectedItem) is not { } path) return;
+        e.Handled = true;
+        ShowPathInWindowsExplorer(path, selectFile: true);
+    }
+
+    private void ShowPathInWindowsExplorer(string path, bool selectFile)
+    {
         if (selectFile ? !File.Exists(path) : !Directory.Exists(path))
         {
             MessageBox.Show(this, "Cet emplacement n’est plus accessible.", "Discoscope");

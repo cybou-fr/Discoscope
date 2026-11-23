@@ -384,9 +384,15 @@
                                 <ToggleButton x:Name="LargestAllocatedFolders" Content="Sous-dossiers par taille allouée"
                                               Click="ToggleFileRanking" Padding="8,3" Visibility="Collapsed"
                                               ToolTip="Un fichier lié dans plusieurs sous-dossiers compte une fois dans chacun. Les lignes ne s’additionnent donc pas toujours."/>
+                                <Button x:Name="RevealRankedFileButton" Content="Afficher le fichier"
+                                        Click="RevealRankedFile" Margin="6,0,0,0" Padding="8,3"
+                                        Visibility="Collapsed" IsEnabled="False"
+                                        ToolTip="Sélectionner le fichier dans l’Explorateur Windows"/>
                             </WrapPanel>
                             <Grid Grid.Row="4" Grid.Column="2" ClipToBounds="True">
                                 <DataGrid x:Name="LargestFilesTable"  ItemsSource="{Binding LargestFiles}" AutoGenerateColumns="False"
+                                          SelectionMode="Single" SelectionChanged="RankedFileSelectionChanged"
+                                          MouseDoubleClick="RevealRankedFileOnDoubleClick" PreviewKeyDown="RevealRankedFileOnEnter"
                                           Visibility="{Binding IsChecked, ElementName=LargestLogicalFiles, Converter={StaticResource BoolToVisibility}}"
                           IsReadOnly="True" Background="#1A2230" Foreground="White"
                           RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
@@ -398,6 +404,8 @@
                     </DataGrid.Columns>
                 </DataGrid>
                                 <DataGrid x:Name="LargestAllocatedFilesTable" AutoGenerateColumns="False"
+                                          SelectionMode="Single" SelectionChanged="RankedFileSelectionChanged"
+                                          MouseDoubleClick="RevealRankedFileOnDoubleClick" PreviewKeyDown="RevealRankedFileOnEnter"
                                           Visibility="{Binding IsChecked, ElementName=LargestAllocatedFiles, Converter={StaticResource BoolToVisibility}}"
                                           IsReadOnly="True" Background="#1A2230" Foreground="White"
                                           RowBackground="#1A2230" AlternatingRowBackground="#222C3D"
