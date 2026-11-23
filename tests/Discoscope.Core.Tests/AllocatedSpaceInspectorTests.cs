@@ -23,17 +23,22 @@ public sealed class AllocatedSpaceInspectorTests
             string link = Path.Combine(second.FullName, "link.bin");
             string siblingLink = Path.Combine(first.FullName, "sibling-link.bin");
             string missing = Path.Combine(second.FullName, "missing.bin");
+            string changed = Path.Combine(second.FullName, "changed.bin");
             File.WriteAllBytes(original, new byte[8192]);
             File.WriteAllBytes(missing, new byte[8192]);
+            File.WriteAllBytes(changed, new byte[8192]);
+            var lastWrite = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(changed, lastWrite);
             Assert.True(CreateHardLink(link, original, IntPtr.Zero));
             Assert.True(CreateHardLink(siblingLink, original, IntPtr.Zero));
 
             var scan = await new DiskScanner().ScanAsync(root.FullName, null, default);
             File.Delete(missing);
+            File.SetLastWriteTimeUtc(changed, lastWrite.AddHours(1));
             var inspector = new AllocatedSpaceInspector();
             var result = await inspector.InspectAsync(scan.Hierarchy!);
             Assert.Equal(1, result.MeasuredPaths);
-            Assert.Equal(1, result.UnavailablePaths);
+            Assert.Equal(2, result.UnavailablePaths);
             Assert.Equal(2, result.DuplicateLinks);
             Assert.Equal(8192, result.MeasuredLogicalBytes);
             Assert.InRange(result.Bytes, 8192, 65536);

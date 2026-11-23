@@ -54,10 +54,13 @@ public sealed class DiskScanner : IDiskScanner
             {
                 var aggregationStarted = activity is null ? 0 : Stopwatch.GetTimestamp();
                 var parent = directory.Parent!;
-                parent.Bytes += directory.Bytes;
-                parent.FileCount += directory.FileCount;
-                parent.DirectoryCount += directory.DirectoryCount + 1;
-                parent.SkippedCount += directory.SkippedCount;
+                checked
+                {
+                    parent.Bytes += directory.Bytes;
+                    parent.FileCount += directory.FileCount;
+                    parent.DirectoryCount += directory.DirectoryCount + 1;
+                    parent.SkippedCount += directory.SkippedCount;
+                }
                 if (activity is not null) aggregationTicks += Stopwatch.GetTimestamp() - aggregationStarted;
                 continue;
             }
@@ -98,10 +101,13 @@ public sealed class DiskScanner : IDiskScanner
                             largestFiles.Enqueue(new LargeFileEntry(Path.Join(current, name), length), length);
                         else if (largestFiles.TryPeek(out _, out long smallest) && length > smallest)
                             largestFiles.DequeueEnqueue(new LargeFileEntry(Path.Join(current, name), length), length);
-                        localBytes += length;
-                        localFiles++;
-                        bytes += length;
-                        fileCount++;
+                        checked
+                        {
+                            localBytes += length;
+                            localFiles++;
+                            bytes += length;
+                            fileCount++;
+                        }
                     }
                     ReportProgress(current);
                 }

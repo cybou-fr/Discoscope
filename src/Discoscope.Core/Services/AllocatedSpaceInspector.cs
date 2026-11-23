@@ -40,6 +40,7 @@ public sealed class AllocatedSpaceInspector
         long bytes = 0, logicalBytes = 0, measured = 0, unavailable = 0, duplicates = 0;
         long lastReport = 0;
         long folderOrder = 0;
+        long fileTimeEpochTicks = DateTime.FromFileTimeUtc(0).Ticks;
         MeasureDirectories([root], null);
         foreach (var child in root.Directories)
         {
@@ -84,8 +85,9 @@ public sealed class AllocatedSpaceInspector
                     using var handle = CreateFile(path, 0, 7, IntPtr.Zero,
                         3, 0x00200000, IntPtr.Zero);
                     if (handle.IsInvalid ||
-                        !GetAttributeInfo(handle, 9, out var attributes, Marshal.SizeOf<AttributeInfo>()) ||
-                        (attributes.Attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0 ||
+                        !GetBasicInfo(handle, 0, out var basic, Marshal.SizeOf<BasicInfo>()) ||
+                        (basic.Attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0 ||
+                        (file.ModifiedUtc != default && file.ModifiedUtc.Ticks - fileTimeEpochTicks != basic.LastWriteTime) ||
                         !GetStandardInfo(handle, 1, out var standard, Marshal.SizeOf<StandardInfo>()) ||
                         standard.DeletePending != 0 || standard.EndOfFile != file.Bytes || standard.AllocationSize < 0)
                     {
@@ -94,7 +96,7 @@ public sealed class AllocatedSpaceInspector
                     }
 
                     long allocation = standard.AllocationSize;
-                    if ((attributes.Attributes & (FileAttributes.Compressed | FileAttributes.SparseFile)) != 0)
+                    if ((basic.Attributes & (FileAttributes.Compressed | FileAttributes.SparseFile)) != 0)
                     {
                         if (!GetCompressionInfo(handle, 8, out var compression, Marshal.SizeOf<CompressionInfo>()) ||
                             compression.CompressedFileSize < 0)
@@ -164,10 +166,13 @@ public sealed class AllocatedSpaceInspector
     private readonly record struct FileIdentity(ulong Volume, ulong Low, ulong High);
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct AttributeInfo
+    private struct BasicInfo
     {
+        public long CreationTime;
+        public long LastAccessTime;
+        public long LastWriteTime;
+        public long ChangeTime;
         public FileAttributes Attributes;
-        public uint ReparseTag;
     }
 
     [StructLayout(LayoutKind.Sequential, Size = 16)]
@@ -190,7 +195,7 @@ public sealed class AllocatedSpaceInspector
 
     [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandleEx")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetAttributeInfo(SafeFileHandle handle, int infoClass, out AttributeInfo value, int bytes);
+    private static extern bool GetBasicInfo(SafeFileHandle handle, int infoClass, out BasicInfo value, int bytes);
 
     [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandleEx")]
     [return: MarshalAs(UnmanagedType.Bool)]
