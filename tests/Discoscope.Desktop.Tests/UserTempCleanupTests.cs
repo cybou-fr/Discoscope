@@ -122,6 +122,24 @@ public sealed class UserTempCleanupTests : IDisposable
     }
 
     [Fact]
+    public void NativeRecycleLeavesFileInPlaceWhenLastVerificationFails()
+    {
+        var path = WriteOld("refused-by-last-verification.bin", 8);
+        string original = Path.Combine(_root.FullName, "original.bin");
+        using var guard = CleanupFileGuard.Open(_root.FullName, path);
+        var replacement = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        Assert.Throws<IOException>(() => WindowsRecycleBin.MoveFile(path, () =>
+        {
+            File.Move(path, original);
+            File.WriteAllBytes(path, replacement);
+            File.SetLastWriteTimeUtc(path, guard.ModifiedUtc);
+            guard.VerifyPathStillMatches(path);
+        }));
+        Assert.Equal(replacement, File.ReadAllBytes(path));
+        Assert.Equal(8, new FileInfo(original).Length);
+    }
+
+    [Fact]
     public void HardLinkedFilesAreExcludedAndNewLinksInvalidateExistingCandidates()
     {
         if (new DriveInfo(_root.Root.FullName).DriveFormat != "NTFS") return;

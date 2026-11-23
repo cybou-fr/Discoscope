@@ -1,6 +1,5 @@
 using System.IO;
 using System.IO.Enumeration;
-using Microsoft.VisualBasic.FileIO;
 
 namespace Discoscope.Desktop.Services;
 
@@ -218,13 +217,13 @@ public static class UserTempCleanup
 
     public static RecycleReport RecycleWithReport(IReadOnlyList<Candidate> candidates, Location location = Location.User,
         CancellationToken token = default, IProgress<RecycleProgress>? progress = null) =>
-        RecyclePages([candidates], candidates.Count, GetRoot(location), RecycleFile, token, progress);
+        RecyclePages([candidates], candidates.Count, GetRoot(location), recycle: null, token, progress);
 
     public static RecycleReport RecycleInventory(Inventory inventory, Location location, CancellationToken token = default,
         IProgress<RecycleProgress>? progress = null) =>
-        RecycleInventory(inventory, GetRoot(location), RecycleFile, token, progress);
+        RecycleInventory(inventory, GetRoot(location), recycle: null, token, progress);
 
-    internal static RecycleReport RecycleInventory(Inventory inventory, string root, Action<string> recycle,
+    internal static RecycleReport RecycleInventory(Inventory inventory, string root, Action<string>? recycle,
         CancellationToken token = default, IProgress<RecycleProgress>? progress = null)
     {
         root = NormalizeRoot(root);
@@ -243,7 +242,7 @@ public static class UserTempCleanup
     }
 
     private static RecycleReport RecyclePages(IEnumerable<IReadOnlyList<Candidate>> pages, long total, string root,
-        Action<string> recycle, CancellationToken token, IProgress<RecycleProgress>? progress)
+        Action<string>? recycle, CancellationToken token, IProgress<RecycleProgress>? progress)
     {
         long recycled = 0, skipped = 0, processed = 0, bytes = 0, lastReported = -1;
         var errors = new List<string>();
@@ -265,8 +264,19 @@ public static class UserTempCleanup
                             file.ModifiedUtc > DateTime.UtcNow.AddDays(-7))
                             throw new IOException("Fichier modifié ou devenu non éligible.");
                         token.ThrowIfCancellationRequested();
-                        file.VerifyPathStillMatches(candidate.Path);
-                        recycle(candidate.Path);
+                        void Verify()
+                        {
+                            file.VerifyPathStillMatches(candidate.Path);
+                            token.ThrowIfCancellationRequested();
+                        }
+
+                        if (recycle is null)
+                            WindowsRecycleBin.MoveFile(candidate.Path, Verify);
+                        else
+                        {
+                            Verify();
+                            recycle(candidate.Path);
+                        }
                         recycled++;
                         bytes = AddBytes(bytes, candidate.Bytes);
                     }
@@ -299,9 +309,6 @@ public static class UserTempCleanup
             progress?.Report(new RecycleProgress(ToInt(processed), ToInt(total), ToInt(recycled), ToInt(skipped), bytes));
         }
     }
-
-    internal static void RecycleFile(string path) =>
-        FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
 
     private static int ToInt(long value) => (int)Math.Min(int.MaxValue, value);
     private static long AddBytes(long total, long bytes) => total > long.MaxValue - bytes ? long.MaxValue : total + bytes;
